@@ -1,0 +1,386 @@
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useData, UserData } from '../../contexts/DataContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { ScheduleMatrixView } from '../../components/ScheduleMatrixView';
+import { ArrowLeft, Calendar as CalendarIcon, Check } from 'lucide-react';
+import { cn } from '../../lib/utils';
+import { WatchSchedule } from '../../contexts/DataContext';
+import { supabase } from '../../lib/supabase';
+
+export default function ScheduleGeneratorWizard() {
+    const { users, createSchedule, getRequestsForVessel } = useData();
+    const { user: currentUser } = useAuth();
+    const navigate = useNavigate();
+
+    // STEPS: 1=Config, 2=Crew, 3=Preview
+    const [step, setStep] = useState(1);
+
+    const [watchType] = useState<WatchSchedule['watchType']>('underway');
+    const [scheduleName, setScheduleName] = useState('');
+
+    // Use strings for date inputs (YYYY-MM-DD)
+    const [startDate, setStartDate] = useState(() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return tomorrow.toISOString().split('T')[0];
+    });
+
+    // Time is now a string "HH:mm"
+    const [startTime, setStartTime] = useState("12:00");
+
+    const [endDate, setEndDate] = useState(() => {
+        const nextWeek = new Date();
+        nextWeek.setDate(nextWeek.getDate() + 8);
+        return nextWeek.toISOString().split('T')[0];
+    });
+
+    const [endTime, setEndTime] = useState("12:00");
+
+    const [duration, setDuration] = useState(4);
+    const [crewPerWatch, setCrewPerWatch] = useState(2);
+    const [isStaggered, setIsStaggered] = useState(true);
+
+    // -- Step 2: Crew State --
+    const [selectedCrewIds, setSelectedCrewIds] = useState<string[]>([]);
+
+    // -- Step 3: Preview State --
+    const [previewSchedule, setPreviewSchedule] = useState<WatchSchedule | null>(null);
+
+    // Filter crew logic (Same as before)
+    const availableCrew = useMemo(() => {
+        if (!currentUser?.vesselId) return [];
+        const allCrewMap = new Map<string, UserData>();
+        allCrewMap.set(currentUser.id, currentUser as unknown as UserData);
+        const approvedRequests = getRequestsForVessel(currentUser.vesselId)
+            .filter(r => r.status === 'approved');
+        approvedRequests.forEach(req => {
+            if (!allCrewMap.has(req.userId)) {
+                allCrewMap.set(req.userId, {
+                    id: req.userId,
+                    name: req.userName,
+                    role: 'crew',
+                    vesselId: currentUser.vesselId
+                } as UserData);
+            }
+        });
+        const vesselUsers = users.filter(u => u.vesselId === currentUser.vesselId);
+        vesselUsers.forEach(u => {
+            allCrewMap.set(u.id, u);
+        });
+        return Array.from(allCrewMap.values());
+    }, [users, getRequestsForVessel, currentUser]);
+
+    const toggleCrewSelection = (userId: string) => {
+        setSelectedCrewIds(prev => {
+            if (prev.includes(userId)) return prev.filter(id => id !== userId);
+            return [...prev, userId];
+        });
+    };
+
+    const getSelectionOrder = (userId: string) => {
+        const index = selectedCrewIds.indexOf(userId);
+        return index === -1 ? null : index + 1;
+    };
+
+    const generateSchedule = () => {
+        const startDateTime = new Date(startDate);
+        const [startH, startM] = startTime.split(':').map(Number);
+        startDateTime.setHours(startH, startM, 0, 0);
+
+        const endDateTime = new Date(endDate);
+        const [endH, endM] = endTime.split(':').map(Number);
+        endDateTime.setHours(endH, endM, 0, 0);
+
+        const slots = [];
+        let currentTime = new Date(startDateTime);
+        let slotId = 1;
+
+        // Logic adaption for offsets (Same basic logic, just ensuring types match)
+        const offsetHours = isStaggered && crewPerWatch > 1 ? (duration / crewPerWatch) : duration;
+        const loopIncrement = offsetHours * 60 * 60 * 1000;
+
+        const orderedCrew = selectedCrewIds.map(id => availableCrew.find(u => u.id === id)).filter(Boolean) as UserData[];
+        if (orderedCrew.length === 0) return;
+
+        let iter = 0;
+        const totalCrew = orderedCrew.length;
+
+        while (currentTime < endDateTime) {
+            const chunkStart = new Date(currentTime);
+            const chunkEnd = new Date(currentTime.getTime() + loopIncrement);
+            const activeCrewInChunk = [];
+
+            for (let i = 0; i < crewPerWatch; i++) {
+                let crewIndex = (iter - i) % totalCrew;
+                if (crewIndex < 0) crewIndex += totalCrew;
+                activeCrewInChunk.push({
+                    userId: orderedCrew[crewIndex].id,
+                    userName: orderedCrew[crewIndex].name
+                });
+            }
+
+            slots.push({
+                id: slotId++,
+                start: chunkStart.toISOString(),
+                end: chunkEnd.toISOString(),
+                crew: activeCrewInChunk
+            });
+
+            currentTime = chunkEnd;
+            iter++;
+        }
+
+        const newSchedule: WatchSchedule = {
+            id: 'preview-id',
+            vesselId: 'current-vessel',
+            name: scheduleName,
+            watchType: watchType,
+            createdAt: new Date().toISOString(),
+            crewPerWatch,
+            isStaggered,
+            slots
+        };
+
+        setPreviewSchedule(newSchedule);
+        setStep(3);
+    };
+
+    const handlePublish = async () => {
+        if (!previewSchedule) return;
+        const { id: _id, ...scheduleData } = previewSchedule;
+        const targetVesselId = currentUser?.vesselId;
+        if (!targetVesselId) {
+            alert("No vessel found!");
+            return;
+        }
+
+        await createSchedule({ ...scheduleData, vesselId: targetVesselId });
+        await supabase.channel(`vessel_broadcast:${targetVesselId}`).send({
+            type: 'broadcast', event: 'schedule-published', payload: { vesselId: targetVesselId, scheduleName: scheduleData.name }
+        });
+        navigate('/dashboard/captain');
+    };
+
+    return (
+        <div className="min-h-screen bg-background flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b flex items-center gap-4 bg-card z-10 sticky top-0">
+                <Button variant="ghost" size="sm" className="gap-1 pl-2 text-muted-foreground" onClick={() => {
+                    if (step === 1) navigate(-1);
+                    else setStep(step - 1);
+                }}>
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
+                </Button>
+            </div>
+
+            <div className="flex-1 p-6 max-w-lg mx-auto w-full pb-32">
+
+                {/* HEADLINES */}
+                <div className="mb-8">
+                    <h1 className="text-2xl font-bold tracking-tight">
+                        {step === 1 && "Step 1: Configuration"}
+                        {step === 2 && "Step 2: Select Crew"}
+                        {step === 3 && "Step 3: Preview"}
+                    </h1>
+                    <p className="text-muted-foreground text-sm mt-1">
+                        {step === 1 && "Set up the basic parameters for your watch schedule."}
+                        {step === 2 && "Choose who will be on this rotation."}
+                        {step === 3 && "Review the generated schedule before publishing."}
+                    </p>
+                </div>
+
+                {/* STEP 1: CONFIGURATION */}
+                {step === 1 && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+
+                        <div className="space-y-3">
+                            <label className="text-sm font-semibold text-foreground">Schedule Name</label>
+                            <Input
+                                placeholder="e.g. Atlantic Crossing 2024"
+                                value={scheduleName}
+                                onChange={e => setScheduleName(e.target.value)}
+                                className="h-12 text-base"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-foreground">Start Date</label>
+                                <Input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={e => setStartDate(e.target.value)}
+                                    className="h-11"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-foreground">Start Time</label>
+                                <Input
+                                    type="time"
+                                    value={startTime}
+                                    onChange={e => setStartTime(e.target.value)}
+                                    className="h-11"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-foreground">End Date</label>
+                                <Input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={e => setEndDate(e.target.value)}
+                                    className="h-11"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-foreground">End Time</label>
+                                <Input
+                                    type="time"
+                                    value={endTime}
+                                    onChange={e => setEndTime(e.target.value)}
+                                    className="h-11"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-foreground">Duration (Hours)</label>
+                                <Input
+                                    type="number"
+                                    value={duration}
+                                    onChange={e => setDuration(Number(e.target.value))}
+                                    className="h-11"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-foreground">Crew Per Watch</label>
+                                <Input
+                                    type="number"
+                                    value={crewPerWatch}
+                                    onChange={e => setCrewPerWatch(Number(e.target.value))}
+                                    className="h-11"
+                                />
+                            </div>
+                        </div>
+
+                        {crewPerWatch > 1 && (
+                            <div className="flex items-center justify-between p-4 border rounded-xl bg-card shadow-sm">
+                                <div>
+                                    <div className="font-medium text-sm">Staggered Watches</div>
+                                    <div className="text-xs text-muted-foreground">Offset crew changes for smoother handover</div>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    className="h-5 w-5 rounded border-input text-primary focus:ring-primary accent-primary"
+                                    checked={isStaggered}
+                                    onChange={e => setIsStaggered(e.target.checked)}
+                                />
+                            </div>
+                        )}
+
+                        <Button
+                            className="w-full h-12 text-base font-semibold bg-primary hover:bg-primary/90 mt-8"
+                            onClick={() => setStep(2)}
+                        >
+                            Next: Select Crew
+                        </Button>
+                    </div>
+                )}
+
+                {/* STEP 2: SELECT CREW */}
+                {step === 2 && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium text-muted-foreground">{selectedCrewIds.length} Selected</span>
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedCrewIds([])} className="text-destructive h-auto p-0 hover:bg-transparent text-xs hover:text-destructive">
+                                Deselect All
+                            </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {availableCrew.map(u => {
+                                const rank = getSelectionOrder(u.id);
+                                const isSelected = rank !== null;
+
+                                return (
+                                    <div
+                                        key={u.id}
+                                        className={cn(
+                                            "p-4 rounded-xl border transition-all flex items-center justify-between cursor-pointer",
+                                            isSelected
+                                                ? "border-primary bg-primary/5 shadow-sm"
+                                                : "border-border bg-card hover:border-primary/50"
+                                        )}
+                                        onClick={() => toggleCrewSelection(u.id)}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={cn("h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold border", isSelected ? "bg-background text-primary border-primary/20" : "bg-secondary text-muted-foreground border-transparent")}>
+                                                {u.name.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <div className="font-semibold text-sm">{u.name}</div>
+                                                <div className="text-xs text-muted-foreground capitalize">{u.customRole || u.role}</div>
+                                            </div>
+                                        </div>
+
+                                        {isSelected && (
+                                            <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                                                <Check className="h-3.5 w-3.5" />
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <Button
+                            className="w-full h-12 text-base font-semibold fixed bottom-8 left-4 right-4 max-w-lg mx-auto shadow-xl z-20"
+                            disabled={selectedCrewIds.length === 0}
+                            onClick={generateSchedule}
+                        >
+                            Create Schedule ({selectedCrewIds.length})
+                        </Button>
+                    </div>
+                )}
+
+                {/* STEP 3: PREVIEW */}
+                {step === 3 && previewSchedule && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <div className="bg-card rounded-xl p-6 border shadow-sm">
+                            <h2 className="font-bold text-lg mb-2 flex items-center gap-2">
+                                <CalendarIcon className="h-5 w-5 text-primary" />
+                                {scheduleName || "New Schedule"}
+                            </h2>
+                            <div className="grid grid-cols-2 gap-4 text-sm mt-4">
+                                <div>
+                                    <span className="text-muted-foreground block text-xs uppercase tracking-wider mb-1">Duration</span>
+                                    <span className="font-medium">{duration} hours</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground block text-xs uppercase tracking-wider mb-1">Rotation</span>
+                                    <span className="font-medium">{crewPerWatch} per watch</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="border rounded-xl overflow-hidden shadow-sm">
+                            <ScheduleMatrixView schedule={previewSchedule} />
+                        </div>
+
+                        <Button
+                            className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 fixed bottom-8 left-4 right-4 max-w-lg mx-auto shadow-xl z-20"
+                            onClick={handlePublish}
+                        >
+                            Publish Watch Schedule
+                        </Button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}

@@ -1,0 +1,68 @@
+/* Safe area padding for notched devices */
+.safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.safe-area-pt {
+    padding-top: env(safe-area-inset-top, 0);
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 255 255 255; /* White */
+    --foreground: 15 23 42; /* Slate 900 */
+    --card: 255 255 255;
+    --card-foreground: 15 23 42;
+    --popover: 255 255 255;
+    --popover-foreground: 15 23 42;
+    --primary: 30 58 138; /* Blue 900 #1e3a8a */
+    --primary-foreground: 248 250 252; /* Slate 50 */
+    --secondary: 241 245 249; /* Slate 100 */
+    --secondary-foreground: 15 23 42;
+    --muted: 241 245 249; 
+    --muted-foreground: 100 116 139; /* Slate 500 */
+    --accent: 59 130 246; /* Blue 500 */
+    --accent-foreground: 248 250 252;
+    --destructive: 239 68 68; /* Red 500 */
+    --destructive-foreground: 248 250 252;
+    --border: 226 232 240; /* Slate 200 */
+    --input: 226 232 240;
+    --ring: 30 58 138;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 15 23 42; /* Slate 900 */
+    --foreground: 248 250 252; /* Slate 50 */
+    --card: 30 41 59; /* Slate 800 */
+    --card-foreground: 248 250 252;
+    --popover: 15 23 42;
+    --popover-foreground: 248 250 252;
+    --primary: 59 130 246; /* Blue 500 - Lighter for dark mode */
+    --primary-foreground: 15 23 42;
+    --secondary: 30 41 59; /* Slate 800 */
+    --secondary-foreground: 248 250 252;
+    --muted: 30 41 59;
+    --muted-foreground: 148 163 184; /* Slate 400 */
+    --accent: 30 41 59;
+    --accent-foreground: 248 250 252;
+    --destructive: 127 29 29; /* Red 900 */
+    --destructive-foreground: 248 250 252;
+    --border: 30 41 59;
+    --input: 30 41 59;
+    --ring: 59 130 246;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
