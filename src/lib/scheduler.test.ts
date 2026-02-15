@@ -14,7 +14,7 @@ describe('Scheduler', () => {
         const slots = generateSchedule(mockCrew, {
             duration: 4,
             crewPerWatch: 2,
-            watchType: 'underway'
+            watchType: 'Navigation'
         });
 
         expect(slots.length).toBe(6); // 24 / 4 = 6 slots
@@ -73,7 +73,7 @@ describe('Scheduler', () => {
         const slots = generateSchedule(mockCrew, {
             duration: 4,
             crewPerWatch: 2,
-            watchType: 'underway'
+            watchType: 'Navigation'
         });
 
         // Slot 0: Alice, Bob

@@ -6,10 +6,15 @@ import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { BottomTabs } from '../../components/ui/BottomTabs';
 import { ProfileDropdown } from '../../components/ui/ProfileDropdown';
-import { Anchor, Clock, Ship, Loader2, CheckCircle } from 'lucide-react';
+import { Anchor, Clock, Ship, Loader2, CheckCircle, Sailboat, Users } from 'lucide-react';
 import { CrewScheduleView } from './CrewScheduleView';
 import { CrewListView } from './CrewListView';
-import { getCurrentSlot, getTimeRemaining } from '../../lib/time-utils';
+// import { getCurrentSlot, getTimeRemaining } from '../../lib/time-utils'; // Not used with new local logic
+
+const formatTime = (isoString: string) => {
+    if (!isoString) return '';
+    return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+};
 
 const CREW_POSITIONS = {
     bridge: ['Captain', 'Chief Officer', 'Second Officer', 'Third Officer', 'Mate'],
@@ -17,6 +22,44 @@ const CREW_POSITIONS = {
     interior: ['Chief Steward/ess', 'Second Steward/ess', 'Steward/ess', 'Laundry'],
     galley: ['Head Chef', 'Sous Chef', 'Cook'],
     engineering: ['Chief Engineer', 'Second Engineer', 'Third Engineer', 'ETO']
+};
+
+const playAlarm = (type: 'gentle' | 'loud') => {
+    try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        const now = ctx.currentTime;
+        if (type === 'gentle') {
+            osc.frequency.setValueAtTime(440, now); // A4
+            gain.gain.setValueAtTime(0.1, now); // Quiet
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            osc.start(now);
+            osc.stop(now + 0.5); // Single beep
+        } else {
+            // Loud Alarm: Two high pitched beeps
+            osc.frequency.setValueAtTime(880, now);
+            gain.gain.setValueAtTime(0.5, now); // Louder
+            osc.start(now);
+            osc.stop(now + 0.2);
+
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.frequency.setValueAtTime(880, now);
+            gain2.gain.setValueAtTime(0.5, now);
+            osc2.start(now + 0.3);
+            osc2.stop(now + 0.5);
+        }
+    } catch (e) {
+        console.error("Audio play failed", e);
+    }
 };
 
 export default function CrewDashboard() {
@@ -37,33 +80,113 @@ export default function CrewDashboard() {
     // Get all approved crew for the vessel to pass to CrewListView
     const approvedCrew = activeVessel ? users.filter(u => u.vesselId === activeVessel.id) : [];
 
-    const myAssignedSlot = schedule?.slots.find((slot: any) => slot.crew.some((c: any) => c.userId === user?.id));
+    // -- OPTIMIZED SLOT LOGIC --
+    const now = new Date();
 
-    // Check if we are currently in an active slot
-    const currentGlobalSlot = schedule ? getCurrentSlot(schedule.slots) : undefined;
-    const isCurrentlyOnWatch = currentGlobalSlot && currentGlobalSlot.crew.some((c: any) => c.userId === user?.id);
+    // 1. Find the currently active slot (globally)
+    const currentGlobalSlot = schedule?.slots.find(slot => {
+        const start = new Date(slot.start);
+        const end = new Date(slot.end);
+        return now >= start && now < end;
+    });
 
-    // For display, if we are on watch, show the current slot. If not, show our assigned slot (upcoming)
-    const displaySlot = isCurrentlyOnWatch ? currentGlobalSlot : myAssignedSlot;
+    // 2. Check if user is on this active watch
+    const isCurrentlyOnWatch = currentGlobalSlot?.crew.some((c: any) => c.userId === user?.id);
+
+    // 3. Find the NEXT upcoming watch for this user
+    //    Filter for slots where user is crew AND start time is in future
+    //    Sort by start time to get the nearest one
+    const myNextSlot = schedule?.slots
+        .filter(slot => {
+            const start = new Date(slot.start);
+            return start > now && slot.crew.some((c: any) => c.userId === user?.id);
+        })
+        .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0];
+
+    // Display Strategy:
+    // If on watch -> Show Current Slot
+    // Else -> Show Next Slot
+    const displaySlot = isCurrentlyOnWatch ? currentGlobalSlot : myNextSlot;
 
     const [timeLeft, setTimeLeft] = useState('');
+    // New State for Watch Status
+    const [watchStatus, setWatchStatus] = useState<'normal' | 'green' | 'orange' | 'red'>('normal');
+
+    const myCrewEntry = displaySlot?.crew.find((c: any) => c.userId === user?.id);
+    const isCheckedIn = !!myCrewEntry?.checkedInAt;
 
     useEffect(() => {
         if (!isCurrentlyOnWatch || !currentGlobalSlot) {
             setTimeLeft('');
+            setWatchStatus('normal');
             return;
         }
 
         const updateTimer = () => {
-            setTimeLeft(getTimeRemaining(currentGlobalSlot));
+            // Simple robust countdown for ISO strings
+            const end = new Date(currentGlobalSlot.end).getTime();
+            const now = new Date().getTime();
+            const diff = end - now;
+
+            if (diff <= 0) {
+                setTimeLeft('00:00:00');
+                return;
+            }
+
+            const h = Math.floor(diff / (1000 * 60 * 60));
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((diff % (1000 * 60)) / 1000);
+            setTimeLeft(`${h}h ${m}m ${s}s`);
+
+            // ALERT LOGIC
+            if (isCheckedIn && myCrewEntry && activeVessel) {
+                let lastActiveTime = 0;
+                const entry = myCrewEntry as any;
+                if (entry.lastActiveAt) {
+                    lastActiveTime = new Date(entry.lastActiveAt).getTime();
+                } else if (entry.checkedInAt) {
+                    const [hh, mm] = entry.checkedInAt.split(':');
+                    const d = new Date();
+                    d.setHours(Number(hh), Number(mm), 0, 0);
+                    lastActiveTime = d.getTime();
+                }
+
+                if (lastActiveTime > 0) {
+                    const diffMinutes = (now - lastActiveTime) / 1000 / 60;
+                    const interval = activeVessel.checkInInterval || 15;
+
+                    let newStatus: 'green' | 'orange' | 'red' = 'green';
+
+                    if (diffMinutes <= interval) {
+                        newStatus = 'green';
+                    } else if (diffMinutes <= interval + 1) {
+                        newStatus = 'orange';
+                    } else {
+                        newStatus = 'red';
+                    }
+
+                    setWatchStatus(newStatus);
+
+                    // AUDIO TRIGGERS
+                    // Only play roughly once every X seconds to avoid spamming
+                    const seconds = Math.floor(now / 1000);
+                    if (newStatus === 'orange') {
+                        // Gentle audio every 15 seconds
+                        if (seconds % 15 === 0) playAlarm('gentle');
+                    } else if (newStatus === 'red') {
+                        // Loud alarm every 5 seconds
+                        if (seconds % 5 === 0) playAlarm('loud');
+                    }
+                }
+            } else {
+                setWatchStatus('normal');
+            }
         };
 
         const timer = setInterval(updateTimer, 1000);
         updateTimer();
         return () => clearInterval(timer);
-    }, [isCurrentlyOnWatch, currentGlobalSlot]);
-
-    const watchBuddies = displaySlot?.crew.filter((c: any) => c.userId !== user?.id) || [];
+    }, [isCurrentlyOnWatch, currentGlobalSlot, isCheckedIn, myCrewEntry, activeVessel]); // Added dependencies for clarity
 
     const handleJoin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -94,8 +217,6 @@ export default function CrewDashboard() {
         checkInToWatch(activeVessel.id, displaySlot.id, user.id);
     };
 
-    const myCrewEntry = displaySlot?.crew.find((c: any) => c.userId === user?.id);
-    const isCheckedIn = !!myCrewEntry?.checkedInAt;
 
     if (!activeVessel) {
         return (
@@ -181,6 +302,18 @@ export default function CrewDashboard() {
         );
     }
 
+    // Status colors
+    const getCardColor = () => {
+        if (!isCurrentlyOnWatch) return 'bg-primary/5 border-primary/20'; // Normal / Next Watch
+
+        switch (watchStatus) {
+            case 'green': return 'bg-green-100 border-green-300'; // Subtle green
+            case 'orange': return 'bg-orange-100 border-orange-300 animate-pulse-slow'; // Orange
+            case 'red': return 'bg-red-100 border-red-500 animate-pulse'; // Red
+            default: return 'bg-primary/5 border-primary/20';
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background text-foreground">
             <header className="border-b bg-card relative z-50 safe-area-pt">
@@ -199,132 +332,160 @@ export default function CrewDashboard() {
             </header>
 
             <main className="container mx-auto px-4 py-6 pb-24">
-                <h1 className="text-2xl font-bold mb-6">Hello, {user?.name}</h1>
 
                 {activeTab === 'dashboard' && (
-                    <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            <Card className={`border-none transition-colors duration-500 ${isCurrentlyOnWatch ? 'bg-red-900/90 text-white shadow-lg shadow-red-900/20' : 'bg-primary text-primary-foreground'}`}>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <span className={`relative flex h-3 w-3 ${isCurrentlyOnWatch ? '' : 'hidden'}`}>
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    <div className="flex flex-col gap-6">
+                        <div className="flex justify-between items-center">
+                            <h1 className="text-3xl font-bold capitalize">{user?.name ? `${user.name}'s Dashboard` : 'Dashboard'}</h1>
+                        </div>
+
+                        {/* 3-Card Vessel Stats (Moved to Top) */}
+                        <div className="grid grid-cols-3 gap-4">
+                            {/* Vessel Name */}
+                            <Card className="flex flex-col items-center justify-center p-6 bg-card text-center hover:shadow-md transition-shadow">
+                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
+                                    <Ship className="h-6 w-6" />
+                                </div>
+                                <div className="text-sm text-muted-foreground font-medium mb-1">Vessel</div>
+                                <div className="font-bold text-lg leading-tight px-2 break-words">{activeVessel.name}</div>
+                            </Card>
+
+                            {/* Vessel Length */}
+                            <Card className="flex flex-col items-center justify-center p-6 bg-card text-center hover:shadow-md transition-shadow">
+                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
+                                    <Sailboat className="h-6 w-6" />
+                                </div>
+                                <div className="text-sm text-muted-foreground font-medium mb-1">Length</div>
+                                <div className="font-bold text-lg leading-tight">{activeVessel.length}m</div>
+                            </Card>
+
+                            {/* Crew Size */}
+                            <Card className="flex flex-col items-center justify-center p-6 bg-card text-center hover:shadow-md transition-shadow">
+                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
+                                    <Users className="h-6 w-6" />
+                                </div>
+                                <div className="text-sm text-muted-foreground font-medium mb-1">Crew</div>
+                                <div className="font-bold text-lg leading-tight">{approvedCrew.length + 1}</div> {/* +1 for Captain */}
+                            </Card>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Next Watch Card */}
+                            <Card className={`transition-colors duration-500 flex flex-col justify-center border ${getCardColor()}`}>
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        <Clock className={`h-5 w-5 ${isCurrentlyOnWatch && watchStatus === 'red' ? 'text-red-600' : 'text-primary'}`} />
+                                        Current Watch Status: <span className={(() => {
+                                            if (isCurrentlyOnWatch) return "text-green-600 font-bold";
+                                            // Check if next slot starts within 1 hour
+                                            if (myNextSlot) {
+                                                const diffHours = (new Date(myNextSlot.start).getTime() - new Date().getTime()) / (1000 * 60 * 60);
+                                                if (diffHours <= 1) return "text-orange-500 font-bold";
+                                            }
+                                            return "text-blue-500 font-bold";
+                                        })()}>
+                                            {isCurrentlyOnWatch ? 'ON WATCH' : (myNextSlot && (new Date(myNextSlot.start).getTime() - new Date().getTime()) / (1000 * 60 * 60) <= 1 ? 'UP NEXT' : 'OFF')}
                                         </span>
-                                        <Clock className={`h-5 w-5 ${isCurrentlyOnWatch ? 'text-red-200' : ''}`} />
-                                        {isCurrentlyOnWatch ? 'CURRENTLY ON WATCH' : 'Next Watch'}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     {displaySlot ? (
-                                        <>
-                                            <div className="text-4xl font-bold mb-2">{displaySlot.start} - {displaySlot.end}</div>
-                                            <div className="space-y-2">
-                                                <p className="opacity-90 font-medium">
-                                                    {schedule?.watchType === 'anchor' ? 'Anchor Watch' : 'Underway Watch'}
-                                                </p>
+                                        <div className="space-y-4">
+                                            <div className="flex flex-col">
+                                                <div className="text-2xl font-bold">{formatTime(displaySlot.start)} - {formatTime(displaySlot.end)}</div>
+                                                <div className="text-sm text-muted-foreground capitalize">
+                                                    {schedule?.watchType === 'anchor' ? 'Anchor Watch' : 'Navigation Watch'}
+                                                </div>
 
+                                                {/* Timer for Crew */}
                                                 {isCurrentlyOnWatch && (
-                                                    <div className="bg-black/20 rounded-lg p-2 text-center my-2">
-                                                        <div className="text-xs uppercase opacity-75">Time Remaining</div>
-                                                        <div className="font-mono text-xl font-bold mb-2">{timeLeft}</div>
+                                                    <div className="mt-2 text-right">
+                                                        <div className="text-xs uppercase text-muted-foreground font-bold">Remaining</div>
+                                                        <div className="font-mono text-xl font-bold">{timeLeft}</div>
+                                                    </div>
+                                                )}
+                                            </div>
 
-                                                        {!isCheckedIn ? (
-                                                            <Button variant="secondary" size="sm" className="w-full font-bold animate-pulse" onClick={handleCheckIn}>
-                                                                Check In Now
+                                            {/* Check In Action */}
+                                            {/* Check In Action */}
+                                            {isCurrentlyOnWatch && (
+                                                <div className="pt-2">
+                                                    {(() => {
+                                                        let showCheckInButton = !isCheckedIn;
+                                                        let buttonText = "Check In Now";
+
+                                                        if (isCheckedIn && myCrewEntry && activeVessel) {
+                                                            let lastActiveTime = 0;
+                                                            const entry = myCrewEntry as any;
+                                                            if (entry.lastActiveAt) {
+                                                                lastActiveTime = new Date(entry.lastActiveAt).getTime();
+                                                            } else if (entry.checkedInAt) {
+                                                                const [hh, mm] = entry.checkedInAt.split(':');
+                                                                const d = new Date();
+                                                                d.setHours(Number(hh), Number(mm), 0, 0);
+                                                                lastActiveTime = d.getTime();
+                                                            }
+
+                                                            const diffMinutes = (new Date().getTime() - lastActiveTime) / 1000 / 60;
+                                                            const interval = activeVessel.checkInInterval || 15;
+                                                            // Enable re-check in if within 30 seconds of expiration (e.g. > 14.5m for 15m interval)
+                                                            if (diffMinutes >= interval - 0.5) {
+                                                                showCheckInButton = true;
+                                                                buttonText = "Check In";
+                                                            }
+                                                        }
+
+                                                        return showCheckInButton ? (
+                                                            <Button variant="destructive" size="sm" className="w-full font-bold animate-pulse shadow-lg" onClick={handleCheckIn}>
+                                                                {buttonText}
                                                             </Button>
                                                         ) : (
-                                                            <div className="flex items-center justify-center gap-2 text-green-300 font-bold bg-green-900/40 rounded py-1">
+                                                            <div className="flex items-center justify-center gap-2 text-green-600 font-bold bg-green-500/10 rounded py-2 border border-green-500/20">
                                                                 <CheckCircle className="h-4 w-4" />
-                                                                <span>Checked In at {myCrewEntry.checkedInAt}</span>
+                                                                <span>Checked In at {myCrewEntry?.checkedInAt}</span>
                                                             </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {watchBuddies.length > 0 && (
-                                                    <div className="text-sm">
-                                                        <div className="opacity-75 text-xs uppercase mb-1">On Watch With:</div>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {watchBuddies.map((buddy: any) => (
-                                                                <span key={buddy.userId} className="px-2 py-0.5 bg-white/20 rounded-full">
-                                                                    {buddy.userName}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="text-2xl font-bold mb-2 opacity-50">--:--</div>
-                                            <p className="opacity-90">No watch assigned</p>
-                                        </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : ( // No active/next slot
+                                        <div className="py-4 text-center text-muted-foreground">
+                                            {schedule?.slots.some(s => s.crew.some(c => c.userId === user?.id)) ? "No upcoming watches." : "No watch assigned."}
+                                        </div>
                                     )}
                                 </CardContent>
                             </Card>
 
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Vessel Info</CardTitle>
+                            {/* Global Watch Status Card */}
+                            <Card className="bg-card border-border flex flex-col justify-center">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        <Users className="h-5 w-5 text-primary" />
+                                        On Watch Now
+                                    </CardTitle>
                                 </CardHeader>
-                                <CardContent className="flex items-center gap-4">
-                                    <div className="p-3 bg-secondary rounded-lg">
-                                        <Ship className="h-6 w-6 text-foreground" />
-                                    </div>
-                                    <div>
-                                        <div className="font-bold">{activeVessel.name}</div>
-                                        <div className="text-sm text-muted-foreground">{activeVessel.type} • {activeVessel.length}m</div>
-                                        {schedule && (
-                                            <div className="mt-1 text-xs px-2 py-0.5 bg-secondary rounded-full inline-block uppercase font-bold text-secondary-foreground">
-                                                {schedule.watchType || 'Standard'} Mode
+                                <CardContent>
+                                    {currentGlobalSlot ? (
+                                        <div className="flex flex-col gap-3">
+                                            <div className="flex flex-col gap-2">
+                                                {currentGlobalSlot.crew.map((c: any) => (
+                                                    <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
+                                                        <div className="h-8 w-8 rounded-full bg-secondary border flex items-center justify-center font-bold text-sm shadow-sm">
+                                                            {c.userName[0]}
+                                                        </div>
+                                                        <span className="font-medium text-sm">{c.userName}</span>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        <div className="mt-8">
-                            <h2 className="text-xl font-semibold mb-4">Upcoming Schedule</h2>
-                            <Card>
-                                <CardContent className="p-0">
-                                    {!schedule ? (
-                                        <div className="p-8 text-center text-muted-foreground">
-                                            No schedule published yet.
                                         </div>
                                     ) : (
-                                        <div className="divide-y">
-                                            {schedule.slots.map((slot: any) => {
-                                                const isMyWatch = slot.crew.some((c: any) => c.userId === user?.id);
-                                                return (
-                                                    <div key={slot.id} className={`p-4 flex items-center justify-between ${isMyWatch ? 'bg-primary/5' : ''}`}>
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="font-mono font-bold w-32 flex flex-col">
-                                                                <span>{slot.start} - {slot.end}</span>
-                                                                {slot.condition === 'weekend-only' && (
-                                                                    <span className="text-[10px] text-amber-600 font-extrabold uppercase">Wknd Only</span>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex -space-x-2">
-                                                                {slot.crew.map((c: any) => (
-                                                                    <div key={c.userId} className="h-8 w-8 rounded-full bg-secondary border-2 border-background flex items-center justify-center text-xs" title={c.userName}>
-                                                                        {c.userName[0]}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                        {isMyWatch && <div className="text-xs font-bold text-primary px-2 py-1 bg-primary/10 rounded-full">YOUR WATCH</div>}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                        <div className="text-muted-foreground">No active watch.</div>
                                     )}
                                 </CardContent>
                             </Card>
                         </div>
-                    </>
+                    </div>
                 )}
 
                 {activeTab === 'schedule' && (
@@ -332,7 +493,7 @@ export default function CrewDashboard() {
                 )}
 
                 {activeTab === 'crew' && (
-                    <CrewListView approvedCrew={approvedCrew} />
+                    <CrewListView approvedCrew={approvedCrew} schedule={schedule} vesselName={activeVessel.name} />
                 )}
 
             </main>

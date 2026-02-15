@@ -2,7 +2,7 @@
 export interface SchedulerOptions {
     duration: number; // Watch duration in hours (e.g. 4)
     crewPerWatch: number;
-    watchType: 'underway' | 'anchor' | 'dock';
+    watchType: 'Navigation' | 'anchor' | 'dock';
     // Night hours for Anchor/Dock modes
     nightStart?: number; // e.g. 20 (8 PM)
     nightEnd?: number;   // e.g. 8 (8 AM)

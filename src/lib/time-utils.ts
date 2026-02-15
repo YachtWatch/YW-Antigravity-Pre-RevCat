@@ -10,6 +10,7 @@ export function getCurrentHour(): number {
 
 /**
  * Helper to parse "HH:00" string to hour integer
+ * @deprecated Use Date objects instead
  */
 export function parseHour(timeStr: string): number {
     return parseInt(timeStr.split(':')[0]);
@@ -18,6 +19,7 @@ export function parseHour(timeStr: string): number {
 /**
  * Checks if a given hour falls within a start/end range,
  * handling overnight wrapping (e.g. 20:00 - 08:00)
+ * @deprecated Use Date comparisons
  */
 export function isHourInInterval(hour: number, start: number, end: number): boolean {
     if (start === end) return false; // 0 duration?
@@ -34,13 +36,24 @@ export function isHourInInterval(hour: number, start: number, end: number): bool
 
 /**
  * Finds the slot that is currently active based on system time.
+ * Supports both ISO strings and legacy "HH:mm" (fallback)
  */
 export function getCurrentSlot(slots: Slot[]): Slot | undefined {
-    const currentHour = getCurrentHour();
+    const now = new Date();
+    const currentHour = now.getHours();
+
     return slots.find(slot => {
-        const start = parseHour(slot.start);
-        const end = parseHour(slot.end);
-        return isHourInInterval(currentHour, start, end);
+        // CASE 1: ISO Date Strings (New System)
+        if (slot.start.includes('T')) {
+            const start = new Date(slot.start);
+            const end = new Date(slot.end);
+            return now >= start && now < end;
+        }
+
+        // CASE 2: Legacy "HH:mm" strings
+        const startH = parseHour(slot.start);
+        const endH = parseHour(slot.end);
+        return isHourInInterval(currentHour, startH, endH);
     });
 }
 
@@ -61,30 +74,35 @@ export function formatDuration(ms: number): string {
  */
 export function getTimeRemaining(slot: Slot): string {
     const now = new Date();
+
+    // CASE 1: ISO Date Strings
+    if (slot.end.includes('T')) {
+        const end = new Date(slot.end);
+        if (now >= end) return '0h 0m 0s';
+        if (now < new Date(slot.start)) return ''; // Not started yet
+
+        const diff = end.getTime() - now.getTime();
+        return formatDuration(diff);
+    }
+
+    // CASE 2: Legacy Logic
     const currentHour = now.getHours();
     const start = parseHour(slot.start);
     const end = parseHour(slot.end);
 
-    // Verify we are actually in this slot, otherwise calculation might be weird
+    // Verify we are actually in this slot
     if (!isHourInInterval(currentHour, start, end)) {
         return '';
     }
 
     const target = new Date();
     target.setMinutes(0, 0, 0); // Reset min/sec/ms
-    
-    // Set target hour. 
-    // If end < start (overnight) and we are currently in the 'start' portion (e.g. 22:00 for 20-08), 
-    // then target (08:00) is tomorrow.
-    // If we are in the 'end' portion (e.g. 04:00 for 20-08), target (08:00) is today.
-    
     target.setHours(end);
 
     if (start > end && currentHour >= start) {
         // We are before midnight in an overnight watch, so end time is tomorrow
         target.setDate(target.getDate() + 1);
-    } 
-    // Else: normal case, or post-midnight case where target is already today's 08:00
+    }
 
     const diff = target.getTime() - now.getTime();
     return formatDuration(diff);

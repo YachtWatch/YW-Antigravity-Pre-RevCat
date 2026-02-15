@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { Switch } from '../../components/ui/switch';
 import { Card } from '../../components/ui/card';
-import { Calendar, Clock, Users, Download } from 'lucide-react';
+import { Clock, Users, Download } from 'lucide-react';
 import { WatchSchedule, JoinRequest } from '../../contexts/DataContext';
 import { ScheduleMatrixView } from '../../components/ScheduleMatrixView';
 import { useAuth } from '../../contexts/AuthContext';
@@ -178,101 +178,101 @@ export function CaptainScheduleView({
                 </div>
             )}
 
-            <div ref={scheduleRef} className="bg-background">
-                <Card className="schedule-meta-card p-4 md:p-6 shadow-md overflow-hidden bg-card text-card-foreground border dark:bg-[#1a1f2e] dark:text-white dark:border-none">
-                    <div className="flex flex-col gap-5">
-                        {/* Top Row: Title & Actions */}
-                        <div className="flex justify-between items-start gap-4">
-                            <div className="flex items-center gap-3 overflow-hidden">
-                                <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                                    <Calendar className="h-5 w-5 md:h-6 md:w-6 text-primary" />
-                                </div>
-                                <div className="min-w-0">
-                                    <h1 className="text-xl md:text-2xl font-bold truncate capitalize leading-tight">
+            <div ref={scheduleRef} className="bg-background space-y-6">
+                <Card className="schedule-meta-card p-5 shadow-sm bg-card text-card-foreground border dark:bg-[#1a1f2e] dark:text-white dark:border-none">
+                    <div className="flex flex-col gap-4">
+                        <div className="flex justify-between items-start">
+                            {/* Left: Type & Title */}
+                            <div className="flex flex-col gap-1">
+                                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-left">
+                                    {schedule.watchType === 'anchor' ? 'Anchor Watch' : 'Navigation'}
+                                </p>
+                                <div className="flex items-center gap-3">
+                                    <h1 className="text-3xl font-bold text-foreground leading-tight tracking-tight">
                                         {schedule.name || 'Current Schedule'}
                                     </h1>
-                                    <span className="text-xs font-medium text-muted-foreground dark:text-gray-400 capitalize inline-block mt-0.5">
-                                        {schedule.watchType || 'General'}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                        <span className="relative flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                        </span>
+                                        <span className="text-green-600 font-bold text-[10px] uppercase tracking-wider">Active</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className={cn("flex shrink-0 gap-2", printMode && "opacity-0 pointer-events-none absolute")}>
+                            {/* Right: Actions */}
+                            <div className={cn("flex items-center gap-2", printMode && "opacity-0 pointer-events-none absolute right-0 top-0")}>
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={isDownloading}
-                                    className="h-8 gap-2 border-input bg-background hover:bg-accent hover:text-accent-foreground dark:bg-transparent dark:border-white/10 dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/5"
-                                    onClick={handleDownloadPDF}
-                                >
-                                    <Download className="h-4 w-4" />
-                                    <span className="hidden md:inline">{isDownloading ? 'Downloading...' : 'PDF'}</span>
-                                </Button>
-
-                                <Button
-
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 gap-2 border-input bg-background hover:bg-accent hover:text-accent-foreground dark:bg-transparent dark:border-white/10 dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/5"
+                                    className="h-8 px-3 gap-2 text-foreground font-medium"
                                     onClick={() => navigate('/dashboard/captain/generate-schedule')}
                                 >
-                                    <img src="https://api.iconify.design/lucide:pencil.svg?color=%239ca3af" className="h-4 w-4" alt="Edit" />
-                                    <span className="hidden md:inline">Edit Schedule</span>
-                                    <span className="md:hidden">Edit</span>
+                                    <img src="https://api.iconify.design/lucide:pencil.svg?color=%2364748b" className="h-3.5 w-3.5" alt="" />
+                                    <span>Edit</span>
                                 </Button>
 
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-400/10"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                     onClick={handleDelete}
-                                    title="Delete Schedule"
                                 >
-                                    <span className="sr-only">Delete</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                                </Button>
+
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={isDownloading}
+                                    className="h-8 w-8 text-muted-foreground"
+                                    onClick={handleDownloadPDF}
+                                    title="Download PDF"
+                                >
+                                    <Download className="h-4 w-4" />
                                 </Button>
                             </div>
                         </div>
 
-                        {/* Middle Row: Stats Grid */}
-                        <div className="grid grid-cols-2 gap-4 border-t border-border dark:border-white/5 pt-4">
-                            <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2 text-muted-foreground dark:text-gray-400 text-xs uppercase tracking-wider font-semibold">
-                                    <Clock className="h-3 w-3" />
+                        {/* Divider */}
+                        <div className="h-px bg-border/40 w-full" />
+
+                        {/* Row 2: Stats Grid */}
+                        <div className="flex items-start gap-8">
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2 text-muted-foreground text-[11px] font-bold uppercase tracking-wider">
+                                    <Clock className="h-3.5 w-3.5" />
                                     <span>Duration</span>
                                 </div>
-                                <span className="text-lg font-medium">{watchDurationHours.toFixed(1)}h <span className="text-sm text-muted-foreground dark:text-gray-500 font-normal">watches</span></span>
-                            </div>
-                            <div className="flex flex-col gap-1 pl-4 border-l border-border dark:border-white/5">
-                                <div className="flex items-center gap-2 text-muted-foreground dark:text-gray-400 text-xs uppercase tracking-wider font-semibold">
-                                    <Users className="h-3 w-3" />
-                                    <span>Crew ({schedule.crewPerWatch} / watch)</span>
+                                <div className="text-lg font-semibold text-foreground">
+                                    {watchDurationHours.toFixed(1)}h <span className="text-sm font-normal text-muted-foreground">watches</span>
                                 </div>
-                                <div className="flex flex-wrap gap-2 mt-1">
-                                    {Array.from(new Set(schedule.slots.flatMap(s => s.crew.map(c => c.userName))))
-                                        .sort()
-                                        .map(name => (
-                                            <span key={name} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">
-                                                {name}
-                                            </span>
-                                        ))}
+                            </div>
+
+                            <div className="w-px self-stretch bg-border/40" />
+
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2 text-muted-foreground text-[11px] font-bold uppercase tracking-wider">
+                                    <Users className="h-3.5 w-3.5" />
+                                    <span>Crew</span>
+                                </div>
+                                <div className="text-lg font-semibold text-foreground">
+                                    {schedule.crewPerWatch ? schedule.crewPerWatch : '-'} <span className="text-sm font-normal text-muted-foreground">per watch</span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Bottom Row: View Toggle (Hidden in Print Mode) */}
+                        {/* Row 3: Toggle */}
                         {!printMode && (
-                            <div className="flex items-center justify-between gap-4 pt-2">
-                                <div className="flex items-center gap-3 w-full max-w-[200px] pl-1 pr-3 py-1.5 rounded-full border cursor-pointer transition-colors bg-secondary/50 border-input dark:bg-white/5 dark:border-white/5 hover:bg-secondary dark:hover:bg-white/10" onClick={() => setShowMyWatches(!showMyWatches)}>
+                            <div>
+                                <div className="inline-flex items-center gap-3 px-1.5 pr-4 py-1.5 rounded-full border bg-background hover:bg-accent/50 transition-colors cursor-pointer w-auto" onClick={() => setShowMyWatches(!showMyWatches)}>
                                     <Switch
                                         checked={showMyWatches}
                                         onCheckedChange={setShowMyWatches}
-                                        className="scale-75 data-[state=checked]:bg-primary"
+                                        className="scale-90 data-[state=checked]:bg-primary"
                                     />
-                                    <span className={cn(
-                                        "text-xs font-medium transition-colors",
-                                        showMyWatches ? "text-primary" : "text-muted-foreground dark:text-gray-400"
-                                    )}>
+                                    <span className="text-sm text-muted-foreground font-medium select-none">
                                         My Watch Only
                                     </span>
                                 </div>
@@ -289,9 +289,9 @@ export function CaptainScheduleView({
                         printMode={printMode}
                     />
                 </div>
-            </div>
+            </div >
 
             {/* Edit Slot Modal - Disabled for now */}
-        </div>
+        </div >
     );
 }

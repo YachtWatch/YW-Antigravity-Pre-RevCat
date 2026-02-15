@@ -118,3 +118,4 @@ android/.gradle
 ios/App/App/public
 ios/App/Podfile.lock
 ios/App/Pods
+.vercel

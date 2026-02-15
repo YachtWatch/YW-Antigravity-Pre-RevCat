@@ -18,7 +18,7 @@ export default function ScheduleGeneratorWizard() {
     // STEPS: 1=Config, 2=Crew, 3=Preview
     const [step, setStep] = useState(1);
 
-    const [watchType] = useState<WatchSchedule['watchType']>('underway');
+    const [watchType] = useState<WatchSchedule['watchType']>('Navigation');
     const [scheduleName, setScheduleName] = useState('');
 
     // Use strings for date inputs (YYYY-MM-DD)
@@ -177,7 +177,7 @@ export default function ScheduleGeneratorWizard() {
                 </Button>
             </div>
 
-            <div className="flex-1 p-6 max-w-lg mx-auto w-full pb-32">
+            <div className="flex-1 p-6 max-w-lg mx-auto w-full pb-10">
 
                 {/* HEADLINES */}
                 <div className="mb-8">
@@ -297,9 +297,14 @@ export default function ScheduleGeneratorWizard() {
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-sm font-medium text-muted-foreground">{selectedCrewIds.length} Selected</span>
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedCrewIds([])} className="text-destructive h-auto p-0 hover:bg-transparent text-xs hover:text-destructive">
-                                Deselect All
-                            </Button>
+                            <div className="flex gap-4">
+                                <Button variant="ghost" size="sm" onClick={() => setSelectedCrewIds(availableCrew.map(u => u.id))} className="text-primary h-auto p-0 hover:bg-transparent text-xs hover:text-primary/80">
+                                    Select All
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => setSelectedCrewIds([])} className="text-destructive h-auto p-0 hover:bg-transparent text-xs hover:text-destructive">
+                                    Deselect All
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="space-y-3">
@@ -339,7 +344,7 @@ export default function ScheduleGeneratorWizard() {
                         </div>
 
                         <Button
-                            className="w-full h-12 text-base font-semibold fixed bottom-8 left-4 right-4 max-w-lg mx-auto shadow-xl z-20"
+                            className="w-full h-12 text-base font-semibold mt-8 shadow-lg"
                             disabled={selectedCrewIds.length === 0}
                             onClick={generateSchedule}
                         >
@@ -373,7 +378,7 @@ export default function ScheduleGeneratorWizard() {
                         </div>
 
                         <Button
-                            className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 fixed bottom-8 left-4 right-4 max-w-lg mx-auto shadow-xl z-20"
+                            className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 mt-8 shadow-lg"
                             onClick={handlePublish}
                         >
                             Publish Watch Schedule

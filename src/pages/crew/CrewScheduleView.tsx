@@ -1,12 +1,19 @@
+import { useState } from 'react';
+import { ScheduleMatrixView } from '../../components/ScheduleMatrixView';
+import { WatchSchedule } from '../../contexts/DataContext';
+import { Calendar, Clock, Users } from 'lucide-react';
 import { Card } from '../../components/ui/card';
-import { Calendar } from 'lucide-react';
+import { Switch } from '../../components/ui/switch';
+
 
 interface CrewScheduleViewProps {
-    schedule: any;
+    schedule: WatchSchedule | undefined;
     user: any;
 }
 
 export function CrewScheduleView({ schedule, user }: CrewScheduleViewProps) {
+    const [showMyWatches, setShowMyWatches] = useState(false);
+
     if (!schedule) {
         return (
             <div className="p-8 text-center text-muted-foreground">
@@ -16,47 +23,87 @@ export function CrewScheduleView({ schedule, user }: CrewScheduleViewProps) {
         );
     }
 
+    // Calculate generic watch duration from the first slot (approximate)
+    const firstSlot = schedule.slots[0];
+    const watchDurationHours = firstSlot
+        ? (new Date(firstSlot.end).getTime() - new Date(firstSlot.start).getTime()) / (1000 * 60 * 60)
+        : 0;
+
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Current Schedule
-                    <span className="text-xs font-normal px-2 py-1 bg-secondary rounded-full ml-2 uppercase">
-                        {schedule.watchType || 'General'}
-                    </span>
-                </h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {schedule.slots.map((slot: any) => {
-                    const isMyWatch = slot.crew.some((c: any) => c.userId === user?.id);
-                    return (
-                        <Card key={slot.id} className={`overflow-hidden border-l-4 ${isMyWatch ? 'border-l-primary ring-1 ring-primary/20' : 'border-l-muted'}`}>
-                            <div className={`p-2 text-center text-sm font-bold border-b flex justify-between px-4 ${isMyWatch ? 'bg-primary/10' : 'bg-muted/30'}`}>
-                                <span>{slot.start} - {slot.end}</span>
-                                <div className="flex gap-2 items-center">
-                                    {isMyWatch && <span className="text-[10px] font-bold text-primary uppercase">My Watch</span>}
-                                    {slot.condition === 'weekend-only' && (
-                                        <span className="text-[10px] uppercase bg-amber-500/20 text-amber-700 px-1.5 py-0.5 rounded font-extrabold border border-amber-500/30">Weekend Only</span>
-                                    )}
+            <Card className="schedule-meta-card p-5 shadow-sm bg-card text-card-foreground border dark:bg-[#1a1f2e] dark:text-white dark:border-none">
+                <div className="flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                        {/* Left: Type & Title */}
+                        <div className="flex flex-col gap-1">
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-left">
+                                {schedule.watchType === 'anchor' ? 'Anchor Watch' : 'Navigation'}
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-3xl font-bold text-foreground leading-tight tracking-tight">
+                                    {schedule.name || 'Current Schedule'}
+                                </h1>
+                                <div className="flex items-center gap-1.5 mt-1">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    </span>
+                                    <span className="text-green-600 font-bold text-[10px] uppercase tracking-wider">Active</span>
                                 </div>
                             </div>
-                            <div className="p-4 space-y-2">
-                                {slot.crew.map((member: any) => (
-                                    <div key={member.id || member.userId} className="flex items-center gap-2 text-sm">
-                                        <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-[10px]">
-                                            {member.userName?.[0]}
-                                        </div>
-                                        <span className={member.userId === user?.id ? 'font-bold' : ''}>
-                                            {member.userName} {member.userId === user?.id && '(You)'}
-                                        </span>
-                                    </div>
-                                ))}
+                        </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-border/40 w-full" />
+
+                    {/* Row 2: Stats Grid */}
+                    <div className="flex items-start gap-8">
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2 text-muted-foreground text-[11px] font-bold uppercase tracking-wider">
+                                <Clock className="h-3.5 w-3.5" />
+                                <span>Duration</span>
                             </div>
-                        </Card>
-                    );
-                })}
+                            <div className="text-lg font-semibold text-foreground">
+                                {watchDurationHours.toFixed(1)}h <span className="text-sm font-normal text-muted-foreground">watches</span>
+                            </div>
+                        </div>
+
+                        <div className="w-px self-stretch bg-border/40" />
+
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2 text-muted-foreground text-[11px] font-bold uppercase tracking-wider">
+                                <Users className="h-3.5 w-3.5" />
+                                <span>Crew</span>
+                            </div>
+                            <div className="text-lg font-semibold text-foreground">
+                                {schedule.crewPerWatch ? schedule.crewPerWatch : '-'} <span className="text-sm font-normal text-muted-foreground">per watch</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Row 3: Toggle */}
+                    <div>
+                        <div className="inline-flex items-center gap-3 px-1.5 pr-4 py-1.5 rounded-full border bg-background hover:bg-accent/50 transition-colors cursor-pointer w-auto" onClick={() => setShowMyWatches(!showMyWatches)}>
+                            <Switch
+                                checked={showMyWatches}
+                                onCheckedChange={setShowMyWatches}
+                                className="scale-90 data-[state=checked]:bg-primary"
+                            />
+                            <span className="text-sm text-muted-foreground font-medium select-none">
+                                My Watch Only
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </Card>
+
+            <div className="min-h-[300px]">
+                <ScheduleMatrixView
+                    schedule={schedule}
+                    currentUserId={user?.id}
+                    showOnlyUserId={showMyWatches ? user?.id : undefined}
+                />
             </div>
         </div>
     );

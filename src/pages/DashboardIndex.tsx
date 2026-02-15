@@ -1,8 +1,21 @@
+import { useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { NotificationService } from '../services/NotificationService';
 
 export default function DashboardIndex() {
     const { user, loading } = useAuth();
+
+    useEffect(() => {
+        // Request notification permissions on dashboard load
+        const requestNotifs = async () => {
+            const granted = await NotificationService.checkPermissions();
+            if (!granted) {
+                await NotificationService.requestPermissions();
+            }
+        };
+        requestNotifs();
+    }, []);
 
     if (loading) {
         return (

@@ -13,6 +13,8 @@ export interface User {
     nationality?: string;
     passportNumber?: string;
     dateOfBirth?: string;
+    reminder1?: number;
+    reminder2?: number;
 }
 
 interface AuthContextType {
@@ -223,7 +225,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     customRole: data.custom_role,
                     nationality: data.nationality,
                     passportNumber: data.passport_number,
-                    dateOfBirth: data.date_of_birth
+                    dateOfBirth: data.date_of_birth,
+                    reminder1: data.reminder_1 || 0,
+                    reminder2: data.reminder_2 || 0
                 });
             }
         } catch (err: any) {

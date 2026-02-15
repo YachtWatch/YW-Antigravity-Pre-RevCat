@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 
+
 export interface Vessel {
     id: string;
     captainId: string;
@@ -26,7 +27,7 @@ export interface WatchSchedule {
     id: string;
     vesselId: string;
     name: string;
-    watchType: 'anchor' | 'underway' | 'dock';
+    watchType: 'anchor' | 'Navigation' | 'dock';
     createdAt: string;
     // New fields for generator meta-data
     crewPerWatch?: number;
@@ -51,6 +52,8 @@ export interface UserData {
     nationality?: string;
     passportNumber?: string;
     dateOfBirth?: string;
+    reminder1?: number; // Minutes before watch
+    reminder2?: number; // Minutes before watch
 }
 
 interface DataContextType {
@@ -76,6 +79,7 @@ interface DataContextType {
     updateCrewRole: (userId: string, newRole: string) => void;
     updateVesselSettings: (vesselId: string, updates: Partial<Vessel>) => void;
     checkInToWatch: (vesselId: string, slotId: number, userId: string) => void;
+    confirmWatchAlert: (vesselId: string, slotId: number, userId: string) => Promise<void>;
     deleteSchedule: (vesselId: string) => Promise<void>;
     refreshData: () => Promise<void>;
 }
@@ -93,6 +97,8 @@ interface SupabaseProfile {
     nationality?: string;
     passport_number?: string;
     date_of_birth?: string;
+    reminder_1?: number;
+    reminder_2?: number;
 }
 
 interface SupabaseVessel {
@@ -120,7 +126,7 @@ interface SupabaseSchedule {
     id: string;
     vessel_id: string;
     name: string;
-    watch_type: 'anchor' | 'underway' | 'dock';
+    watch_type: 'anchor' | 'Navigation' | 'dock';
     created_at: string;
     slots: {
         id: number;
@@ -148,7 +154,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         vesselId: p.vessel_id,
         nationality: p.nationality,
         passportNumber: p.passport_number,
-        dateOfBirth: p.date_of_birth
+        dateOfBirth: p.date_of_birth,
+        reminder1: p.reminder_1 || 0,
+        reminder2: p.reminder_2 || 0
     });
 
     const mapVessel = (v: SupabaseVessel): Vessel => ({
@@ -199,7 +207,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 console.log("📡 Realtime Subscription Status:", status);
             });
 
-        return () => { supabase.removeChannel(channel); };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log("👀 App became visible, refreshing data...");
+                refreshData();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            supabase.removeChannel(channel);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, []);
 
     const refreshData = async () => {
@@ -213,8 +233,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const { data: rData } = await supabase.from('join_requests').select('*');
         if (rData) setRequests((rData as SupabaseJoinRequest[]).map(mapRequest));
 
-        const { data: sData } = await supabase.from('schedules').select('*');
-        if (sData) setSchedules((sData as SupabaseSchedule[]).map(mapSchedule));
+        // ORDER BY created_at DESC to ensure we always get the latest schedule first
+        const { data: sData } = await supabase.from('schedules').select('*').order('created_at', { ascending: false });
+        if (sData) {
+            console.log(`📅 Loaded ${sData.length} schedules.`);
+            setSchedules((sData as SupabaseSchedule[]).map(mapSchedule));
+        }
     };
 
     const updateUserInStore = async (userId: string, updates: Partial<UserData>) => {
@@ -226,6 +250,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (updates.nationality) dbUpdates.nationality = updates.nationality;
         if (updates.passportNumber) dbUpdates.passport_number = updates.passportNumber;
         if (updates.dateOfBirth) dbUpdates.date_of_birth = updates.dateOfBirth;
+        if (updates.reminder1 !== undefined) dbUpdates.reminder_1 = updates.reminder1;
+        if (updates.reminder2 !== undefined) dbUpdates.reminder_2 = updates.reminder2;
 
         console.log(`📝 STRICT UPDATE: Updating user ${userId}`, dbUpdates);
 
@@ -342,16 +368,35 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const getPendingRequest = (userId: string) => requests.find(r => r.userId === userId && r.status === 'pending');
 
-    const createSchedule = async (schedule: Omit<WatchSchedule, 'id'>) => {
-        // Attempt to delete existing schedule first (if allowing one per vessel)
-        await supabase.from('schedules').delete().eq('vessel_id', schedule.vesselId);
+    // ... (lines 239-365 unchanged)
 
-        await supabase.from('schedules').insert({
+    const createSchedule = async (schedule: Omit<WatchSchedule, 'id'>) => {
+        console.log("🗓️ creating schedule for", schedule.vesselId);
+
+        // 1. Delete ALL existing schedules for this vessel to prevent duplicates
+        const { error: deleteError } = await supabase.from('schedules').delete().eq('vessel_id', schedule.vesselId);
+        if (deleteError) {
+            console.error("❌ Failed to clear old schedules:", deleteError);
+            // We proceed anyway, but warn
+        } else {
+            console.log("🗑️ Cleared old schedules.");
+        }
+
+        // 2. Insert new schedule
+        const { error: insertError } = await supabase.from('schedules').insert({
             vessel_id: schedule.vesselId,
             name: schedule.name,
             watch_type: schedule.watchType,
             slots: schedule.slots
         });
+
+        if (insertError) {
+            console.error("❌ Failed to create schedule:", insertError);
+            alert("Failed to publish schedule. Please try again.");
+            return;
+        }
+
+        console.log("✅ Schedule published.");
         await refreshData();
     };
 
@@ -429,7 +474,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
             if (slot.id === slotId) {
                 const newCrew = slot.crew.map((c: any) => {
                     if (c.userId === userId) {
-                        return { ...c, checkedInAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+                        // Should we use ISO string for consistency? checking usage.. currently using localeTimeString.
+                        // Let's stick to localeTimeString for display simplicity as per existing code, or switch to ISO if needed for calc.
+                        // Existing code: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        // We need comparisons, so ISO is better for 'lastActiveAt'.
+                        const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                        return { ...c, checkedInAt: timeString, lastActiveAt: new Date().toISOString() };
+                    }
+                    return c;
+                });
+                return { ...slot, crew: newCrew };
+            }
+            return slot;
+        });
+
+        await supabase.from('schedules').update({ slots: newSlots }).eq('id', schedule.id);
+        await refreshData();
+    };
+
+    const confirmWatchAlert = async (vesselId: string, slotId: number, userId: string) => {
+        const schedule = schedules.find(s => s.vesselId === vesselId);
+        if (!schedule) return;
+
+        const newSlots = schedule.slots.map(slot => {
+            if (slot.id === slotId) {
+                const newCrew = slot.crew.map((c: any) => {
+                    if (c.userId === userId) {
+                        return { ...c, lastActiveAt: new Date().toISOString() };
                     }
                     return c;
                 });
@@ -460,7 +531,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             requestJoin, getRequestsForVessel, updateRequestStatus, getCrewVessel, getPendingRequest,
             createSchedule, updateScheduleSlot, updateScheduleSettings, getSchedule,
             users, updateUserInStore, loading,
-            removeCrew, updateCrewRole, updateVesselSettings, checkInToWatch, deleteSchedule, refreshData
+            removeCrew, updateCrewRole, updateVesselSettings, checkInToWatch, confirmWatchAlert, deleteSchedule, refreshData
         }}>
             {children}
         </DataContext.Provider>

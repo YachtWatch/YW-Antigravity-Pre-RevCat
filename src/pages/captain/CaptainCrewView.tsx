@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '../../components/ui/button';
+import { Card, CardContent } from '../../components/ui/card';
 import { UserData, Vessel } from '../../contexts/DataContext';
 import { X, Check, Printer, RefreshCw } from 'lucide-react';
 import { CrewListPrintView } from '../../components/CrewListPrintView'; // Import the print view
@@ -90,6 +91,24 @@ export function CaptainCrewView({ vessel, captainName, approvedCrew, pendingRequ
                 </div>
             )}
 
+            {/* Join Code Card (Moved from Dashboard) */}
+            <Card className="bg-primary/5 border-primary/20 print:hidden">
+                <CardContent className="flex flex-col sm:flex-row items-center justify-between p-6 gap-4">
+                    <div className="space-y-1 text-center sm:text-left">
+                        <h3 className="font-semibold text-foreground">Vessel Join Code</h3>
+                        <p className="text-sm text-muted-foreground">Share this code with your crew to let them join.</p>
+                    </div>
+                    <div className="flex flex-col items-center">
+                        <div className="text-3xl font-mono font-bold tracking-[0.2em] text-primary bg-background px-6 py-3 rounded-lg border shadow-sm select-all cursor-pointer hover:border-primary transition-colors"
+                            onClick={() => { navigator.clipboard.writeText(vessel.joinCode); alert('Copied to clipboard!'); }}
+                            title="Click to copy">
+                            {vessel.joinCode}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-medium">Click to Copy</span>
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* Pending Requests Section */}
             <div className="print:hidden">
                 <h3 className="font-bold mb-4 flex items-center gap-2">
@@ -129,40 +148,45 @@ export function CaptainCrewView({ vessel, captainName, approvedCrew, pendingRequ
             {/* Active Crew Section */}
             <div className="print:hidden">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold">Active Crew ({approvedCrew.length})</h3>
+                    <h3 className="font-bold">Active Crew ({finalCrewList.length})</h3>
                     <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowPrintView(true)}>
                         <Printer className="h-3 w-3" />
                         Export Crew List
                     </Button>
                 </div>
 
-                {approvedCrew.length === 0 ? (
+                {finalCrewList.length === 0 ? (
                     <p className="text-muted-foreground">No crew members yet.</p>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {approvedCrew.map(c => (
-                            <div key={c.id} className="flex items-center gap-3 p-4 border rounded-lg bg-card">
-                                <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                                    {c.userName[0]}
-                                </div>
-                                <div className="flex-1">
-                                    <div className="font-bold flex items-center justify-between">
-                                        {c.userName}
-                                        <div className="flex gap-2">
-                                            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onEditRole(c.userId)}>
-                                                Edit Role
-                                            </Button>
-                                            <Button variant="ghost" size="sm" className="h-6 text-xs text-destructive hover:bg-destructive/10" onClick={() => onRemoveCrew(c.userId)}>
-                                                Remove
-                                            </Button>
+                        {finalCrewList.map(c => {
+                            const isCaptain = c.role === 'captain';
+                            return (
+                                <div key={c.id} className="flex items-center gap-3 p-4 border rounded-lg bg-card">
+                                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                                        {c.name ? c.name[0] : '?'}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-bold flex items-center justify-between">
+                                            {c.name}
+                                            {!isCaptain && (
+                                                <div className="flex gap-2">
+                                                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onEditRole(c.id)}>
+                                                        Edit Role
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" className="h-6 text-xs text-destructive hover:bg-destructive/10" onClick={() => onRemoveCrew(c.id)}>
+                                                        Remove
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            Role: {c.customRole || (isCaptain ? "Captain" : "Deckhand")}
                                         </div>
                                     </div>
-                                    <div className="text-xs text-muted-foreground">
-                                        Role: {users.find(u => u.id === c.userId)?.customRole || "Deckhand"}
-                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

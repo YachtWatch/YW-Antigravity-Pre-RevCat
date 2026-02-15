@@ -1,8 +1,7 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { ArrowLeft, Moon, Sun, Bell, BellOff, Ship } from 'lucide-react';
+import { ArrowLeft, Moon, Sun, Bell, Ship } from 'lucide-react';
 import { useTheme } from '../components/theme-provider';
 
 import { useAuth } from '../contexts/AuthContext';
@@ -11,9 +10,8 @@ import { useData } from '../contexts/DataContext';
 export default function SettingsPage() {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { getVessel, updateVesselSettings } = useData();
+    const { getVessel, updateVesselSettings, updateUserInStore } = useData();
     const { theme, setTheme } = useTheme();
-    const [notifications, setNotifications] = useState(true);
 
     const vessel = user?.vesselId ? getVessel(user.vesselId) : undefined;
     const isCaptain = user?.role === 'captain';
@@ -83,24 +81,61 @@ export default function SettingsPage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-lg">Notifications</CardTitle>
-                            <CardDescription>Manage your notification preferences</CardDescription>
+                            <div className="flex items-center gap-2">
+                                <Bell className="h-5 w-5 text-primary" />
+                                <CardTitle className="text-lg">Notifications</CardTitle>
+                            </div>
+                            <CardDescription>Manage your watch alerts</CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    {notifications ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5 text-muted-foreground" />}
-                                    <div>
-                                        <div className="font-medium">Push Notifications</div>
-                                        <div className="text-sm text-muted-foreground">Receive alerts for your watch</div>
+                        <CardContent className="space-y-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-sm font-medium">Measurement</label>
+                                    <div className="text-sm text-muted-foreground my-1">
+                                        Select how many minutes before your watch you want to be notified.
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => setNotifications(!notifications)}
-                                    className={`relative w-11 h-6 rounded-full transition-colors ${notifications ? 'bg-primary' : 'bg-secondary'}`}
-                                >
-                                    <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${notifications ? 'translate-x-5' : ''}`} />
-                                </button>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">1st Reminder</label>
+                                        <select
+                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            value={user?.reminder1 || 0}
+                                            onChange={(e) => {
+                                                if (user?.id) updateUserInStore(user.id, { reminder1: Number(e.target.value) });
+                                            }}
+                                        >
+                                            <option value={0}>None</option>
+                                            <option value={5}>5 min before</option>
+                                            <option value={10}>10 min before</option>
+                                            <option value={15}>15 min before</option>
+                                            <option value={20}>20 min before</option>
+                                            <option value={25}>25 min before</option>
+                                            <option value={30}>30 min before</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">2nd Reminder</label>
+                                        <select
+                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            value={user?.reminder2 || 0}
+                                            onChange={(e) => {
+                                                if (user?.id) updateUserInStore(user.id, { reminder2: Number(e.target.value) });
+                                            }}
+                                        >
+                                            <option value={0}>None</option>
+                                            <option value={5}>5 min before</option>
+                                            <option value={10}>10 min before</option>
+                                            <option value={15}>15 min before</option>
+                                            <option value={20}>20 min before</option>
+                                            <option value={25}>25 min before</option>
+                                            <option value={30}>30 min before</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground">Notifications will be sent on this device.</p>
                             </div>
                         </CardContent>
                     </Card>
