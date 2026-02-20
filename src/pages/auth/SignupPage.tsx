@@ -34,7 +34,9 @@ export default function SignupPage() {
                 password,
                 options: {
                     data: {
-                        role: role
+                        role: role,
+                        name: name,
+                        custom_role: position
                     }
                 }
             });

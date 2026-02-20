@@ -23,13 +23,13 @@ export default function LoginPage() {
         e.preventDefault();
         setError('');
         setLoading(true);
-        console.log("🔵 Starting login process...");
+
 
         // TEST: Check basic network connectivity from within the app context
         try {
-            console.log("🔹 Testing Google connectivity...");
-            const googleTest = await fetch('https://www.google.com', { mode: 'no-cors' });
-            console.log("✅ Google fetch status:", googleTest.status, googleTest.type);
+
+            await fetch('https://www.google.com', { mode: 'no-cors' });
+
         } catch (netErr: any) {
             console.error("❌ Network Connectivity Test Failed:", netErr);
             setError("Network Error: App cannot reach internet. " + netErr.message);
@@ -38,7 +38,7 @@ export default function LoginPage() {
         }
 
         try {
-            console.log("🔵 Calling signInWithPassword...");
+
 
             // Create a timeout promise (increased to 60s to handle potential project pausing/cold starts)
             const timeoutPromise = new Promise((_, reject) =>
@@ -57,21 +57,21 @@ export default function LoginPage() {
                 console.error("🔴 AuthService Error:", authError);
                 throw authError;
             }
-            console.log("🟢 Sign in successful, user:", data.user?.id);
+
 
             if (data.user) {
                 // OPTIMIZATION: Check metadata first to avoid extra network call
                 const metadataRole = data.user.user_metadata?.role;
-                console.log("🔵 Metadata Role:", metadataRole);
+
 
                 if (metadataRole === 'captain' || metadataRole === 'crew') {
-                    console.log(`🟢 Using metadata role: ${metadataRole}`);
+
                     navigate(metadataRole === 'captain' ? '/dashboard/captain' : '/dashboard/crew', { replace: true });
                     return;
                 }
 
                 // Fallback: Fetch profile only if metadata is missing/invalid
-                console.log("🔵 Fetching profile (fallback)...");
+
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('role')
@@ -90,18 +90,18 @@ export default function LoginPage() {
                         throw new Error("Failed to fetch profile: " + profileError.message);
                     }
                 }
-                console.log("🟢 Profile fetched:", profile);
+
 
                 // Start: Fix logic. Only redirect if profile is strictly null AND we had a PGRST116 or empty result.
                 // If profileError was something else, we threw above.
                 if (!profile) {
-                    console.log("🔵 Navigating to complete-profile");
+
                     navigate('/complete-profile');
                     return;
                 }
 
                 const role = profile.role || 'crew';
-                console.log(`🔵 Navigating to /dashboard/${role}`);
+
                 navigate(role === 'captain' ? '/dashboard/captain' : '/dashboard/crew', { replace: true });
             }
 
@@ -114,7 +114,7 @@ export default function LoginPage() {
             // Actually, if we navigated, the component might be unmounting, 
             // but setting state on unmounted component is a warning, not a crash.
             // Better to let the navigation happen.
-            console.log("🏁 Login process finished (finally block)");
+
         }
     };
 
@@ -150,9 +150,9 @@ export default function LoginPage() {
                                 <label htmlFor="password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                     Password
                                 </label>
-                                <a href="#" className="text-sm font-medium text-primary hover:underline">
+                                <Link to="/auth/forgot-password" className="text-sm font-medium text-primary hover:underline">
                                     Forgot password?
-                                </a>
+                                </Link>
                             </div>
                             <Input
                                 id="password"

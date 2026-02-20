@@ -1,11 +1,13 @@
-import { useData } from '../../contexts/DataContext';
+
 import { Card, CardContent } from '../../components/ui/card';
-import { Users, Anchor, Compass, Coffee, Wrench, Shield, Activity } from 'lucide-react';
+import { Users, Anchor, Compass, Coffee, Wrench, Activity, Star } from 'lucide-react'; // Added Star for Captain
 import { useAuth } from '../../contexts/AuthContext';
+import { UserData } from '../../contexts/DataContext';
 
 interface CrewListViewProps {
-    approvedCrew: any[];
+    approvedCrew: UserData[];
     schedule?: any;
+    vesselName?: string;
 }
 
 const DEPARTMENT_CONFIG: Record<string, { label: string, icon: any, color: string }> = {
@@ -13,7 +15,7 @@ const DEPARTMENT_CONFIG: Record<string, { label: string, icon: any, color: strin
     deck: { label: 'Deck', icon: Anchor, color: 'text-cyan-500 bg-cyan-500/10' },
     interior: { label: 'Interior', icon: Coffee, color: 'text-purple-500 bg-purple-500/10' },
     engineering: { label: 'Engineering', icon: Wrench, color: 'text-orange-500 bg-orange-500/10' },
-    galley: { label: 'Galley', icon: Wrench, color: 'text-red-500 bg-red-500/10' }, // Reusing wrench for now, maybe utensils later
+    galley: { label: 'Galley', icon: Wrench, color: 'text-red-500 bg-red-500/10' },
     other: { label: 'Other', icon: Users, color: 'text-gray-500 bg-gray-500/10' }
 };
 
@@ -33,18 +35,15 @@ const getDepartment = (role: string) => {
     return 'other';
 };
 
-export function CrewListView({ approvedCrew, schedule, vesselName }: CrewListViewProps & { vesselName?: string }) {
-    const { users } = useData();
+export function CrewListView({ approvedCrew, schedule, vesselName }: CrewListViewProps) {
+
     const { user: currentUser } = useAuth();
 
+    // Ensure we are working with unique users to avoid duplicates if any
+    const uniqueCrew = Array.from(new Map(approvedCrew.map(item => [item.id, item])).values());
+
     // 1. Calculate Department Stats
-    const deptCounts = approvedCrew.reduce((acc, crew) => {
-        const fullUser = users.find(u => u.id === crew.userId);
-        const role = fullUser?.customRole || 'Deckhand';
-        const dept = getDepartment(role);
-        acc[dept] = (acc[dept] || 0) + 1;
-        return acc;
-    }, {} as Record<string, number>);
+
 
     // 2. Calculate Watch Stats
     const now = new Date();
@@ -81,54 +80,32 @@ export function CrewListView({ approvedCrew, schedule, vesselName }: CrewListVie
                             <Users className="h-5 w-5" />
                         </div>
                         <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Crew</div>
-                        <div className="text-2xl font-bold mt-1">{approvedCrew.length}</div>
+                        <div className="text-2xl font-bold mt-1">{uniqueCrew.length}</div>
                     </CardContent>
                 </Card>
 
-                {/* Most Populated Department */}
-                <Card className="col-span-2 bg-gradient-to-br from-card to-secondary/20">
-                    <CardContent className="p-4 h-full flex items-center justify-between">
-                        <div>
-                            <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-1">Departments</div>
-                            <div className="flex gap-2">
-                                {Object.entries(deptCounts).slice(0, 3).map(([dept, count]) => {
-                                    const config = DEPARTMENT_CONFIG[dept] || DEPARTMENT_CONFIG.other;
-                                    const Icon = config.icon;
-                                    return (
-                                        <div key={dept} className="flex items-center gap-1.5 bg-background/80 rounded-full px-2 py-1 shadow-sm border">
-                                            <Icon className={`h-3 w-3 ${config.color.split(' ')[0]}`} />
-                                            <span className="text-xs font-bold">{String(count)}</span>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                            <Shield className="h-5 w-5" />
-                        </div>
-                    </CardContent>
-                </Card>
+
             </div>
 
             <div className="space-y-4">
                 <h3 className="font-bold text-lg flex items-center gap-2">
                     Shipmates
-                    <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{approvedCrew.length}</span>
+                    <span className="text-sm font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{uniqueCrew.length}</span>
                 </h3>
 
-                {approvedCrew.length === 0 ? (
+                {uniqueCrew.length === 0 ? (
                     <div className="text-center py-12 border-2 border-dashed rounded-xl text-muted-foreground">
-                        No other crew members yet.
+                        No crew members found.
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {approvedCrew.map(c => {
-                            const fullUser = users.find(u => u.id === c.userId);
-                            const role = fullUser?.customRole || 'Crew';
+                        {uniqueCrew.map(c => {
+                            const role = c.customRole || c.role || 'Crew';
                             const dept = getDepartment(role);
                             const config = DEPARTMENT_CONFIG[dept] || DEPARTMENT_CONFIG.other;
                             const Icon = config.icon;
-                            const isOnWatch = crewOnWatchIds.includes(c.userId);
+                            const isOnWatch = crewOnWatchIds.includes(c.id);
+                            const isCaptain = role.toLowerCase() === 'captain' || c.role === 'captain';
 
                             return (
                                 <div key={c.id} className="relative group overflow-hidden bg-card hover:bg-accent/5 transition-colors border rounded-xl p-4 flex items-start gap-4 shadow-sm">
@@ -141,14 +118,19 @@ export function CrewListView({ approvedCrew, schedule, vesselName }: CrewListVie
                                         </div>
                                     )}
 
-                                    <div className={`h-12 w-12 rounded-full ${config.color} flex items-center justify-center font-bold text-lg shrink-0`}>
-                                        {c.userName[0]}
+                                    <div className={`h-12 w-12 rounded-full ${config.color} flex items-center justify-center font-bold text-lg shrink-0 relative`}>
+                                        {c.name ? c.name[0] : '?'}
+                                        {isCaptain && (
+                                            <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-yellow-900 rounded-full p-0.5 border-2 border-card">
+                                                <Star className="h-3 w-3 fill-current" />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-bold text-base truncate pr-4">
-                                            {c.userName}
-                                            {currentUser?.id === c.userId && <span className="ml-2 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider">You</span>}
+                                        <div className="font-bold text-base truncate pr-4 flex items-center gap-2">
+                                            {c.name}
+                                            {currentUser?.id === c.id && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">You</span>}
                                         </div>
                                         <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
                                             <Icon className="h-3.5 w-3.5 opacity-70" />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { Button } from '../../components/ui/button';
@@ -9,6 +9,7 @@ import { ProfileDropdown } from '../../components/ui/ProfileDropdown';
 import { Anchor, Clock, Ship, Loader2, CheckCircle, Sailboat, Users } from 'lucide-react';
 import { CrewScheduleView } from './CrewScheduleView';
 import { CrewListView } from './CrewListView';
+import { useWatchLogic } from '../../hooks/useWatchLogic';
 // import { getCurrentSlot, getTimeRemaining } from '../../lib/time-utils'; // Not used with new local logic
 
 const formatTime = (isoString: string) => {
@@ -16,57 +17,21 @@ const formatTime = (isoString: string) => {
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 };
 
-const CREW_POSITIONS = {
-    bridge: ['Captain', 'Chief Officer', 'Second Officer', 'Third Officer', 'Mate'],
-    deck: ['Bosun', 'Lead Deckhand', 'Deckhand', 'Delivery Crew'],
-    interior: ['Chief Steward/ess', 'Second Steward/ess', 'Steward/ess', 'Laundry'],
-    galley: ['Head Chef', 'Sous Chef', 'Cook'],
-    engineering: ['Chief Engineer', 'Second Engineer', 'Third Engineer', 'ETO']
-};
+// const CREW_POSITIONS = { // Removed unused constant
+//     bridge: ['Captain', 'Chief Officer', 'Second Officer', 'Third Officer', 'Mate'],
+//     deck: ['Bosun', 'Lead Deckhand', 'Deckhand', 'Delivery Crew'],
+//     interior: ['Chief Steward/ess', 'Second Steward/ess', 'Steward/ess', 'Laundry'],
+//     galley: ['Head Chef', 'Sous Chef', 'Cook'],
+//     engineering: ['Chief Engineer', 'Second Engineer', 'Third Engineer', 'ETO']
+// };
 
-const playAlarm = (type: 'gentle' | 'loud') => {
-    try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
 
-        const now = ctx.currentTime;
-        if (type === 'gentle') {
-            osc.frequency.setValueAtTime(440, now); // A4
-            gain.gain.setValueAtTime(0.1, now); // Quiet
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-            osc.start(now);
-            osc.stop(now + 0.5); // Single beep
-        } else {
-            // Loud Alarm: Two high pitched beeps
-            osc.frequency.setValueAtTime(880, now);
-            gain.gain.setValueAtTime(0.5, now); // Louder
-            osc.start(now);
-            osc.stop(now + 0.2);
-
-            const osc2 = ctx.createOscillator();
-            const gain2 = ctx.createGain();
-            osc2.connect(gain2);
-            gain2.connect(ctx.destination);
-            osc2.frequency.setValueAtTime(880, now);
-            gain2.gain.setValueAtTime(0.5, now);
-            osc2.start(now + 0.3);
-            osc2.stop(now + 0.5);
-        }
-    } catch (e) {
-        console.error("Audio play failed", e);
-    }
-};
 
 export default function CrewDashboard() {
-    const { user, updateUser } = useAuth();
-    const { requestJoin, getCrewVessel, getPendingRequest, getVessel, getSchedule, checkInToWatch, updateUserInStore, users, refreshData } = useData();
+    const { user } = useAuth();
+    const { requestJoin, getCrewVessel, getPendingRequest, getVessel, getSchedule, checkInToWatch, users, requests, refreshData } = useData();
     const [joinCode, setJoinCode] = useState('');
-    const [selectedPosition, setSelectedPosition] = useState('');
+    // const [selectedPosition, setSelectedPosition] = useState(''); // Removed per user request
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [activeTab, setActiveTab] = useState<'dashboard' | 'schedule' | 'crew'>('dashboard');
@@ -77,116 +42,33 @@ export default function CrewDashboard() {
     const activeVessel = approvedVessel;
     const schedule = activeVessel ? getSchedule(activeVessel.id) : undefined;
 
-    // Get all approved crew for the vessel to pass to CrewListView
-    const approvedCrew = activeVessel ? users.filter(u => u.vesselId === activeVessel.id) : [];
+    // Robustly get all approved crew:
+    // 1. Get IDs of everyone with an APPROVED request for this vessel
+    // 2. Add the Captain's ID
+    const approvedCrewIds = activeVessel
+        ? requests
+            .filter(r => r.vesselId === activeVessel.id && r.status === 'approved')
+            .map(r => r.userId)
+        : [];
+
+    if (activeVessel && !approvedCrewIds.includes(activeVessel.captainId)) {
+        approvedCrewIds.push(activeVessel.captainId);
+    }
+
+    const approvedCrew = users.filter(u => approvedCrewIds.includes(u.id));
 
     // -- OPTIMIZED SLOT LOGIC --
-    const now = new Date();
-
-    // 1. Find the currently active slot (globally)
-    const currentGlobalSlot = schedule?.slots.find(slot => {
-        const start = new Date(slot.start);
-        const end = new Date(slot.end);
-        return now >= start && now < end;
-    });
-
-    // 2. Check if user is on this active watch
-    const isCurrentlyOnWatch = currentGlobalSlot?.crew.some((c: any) => c.userId === user?.id);
-
-    // 3. Find the NEXT upcoming watch for this user
-    //    Filter for slots where user is crew AND start time is in future
-    //    Sort by start time to get the nearest one
-    const myNextSlot = schedule?.slots
-        .filter(slot => {
-            const start = new Date(slot.start);
-            return start > now && slot.crew.some((c: any) => c.userId === user?.id);
-        })
-        .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0];
-
-    // Display Strategy:
-    // If on watch -> Show Current Slot
-    // Else -> Show Next Slot
-    const displaySlot = isCurrentlyOnWatch ? currentGlobalSlot : myNextSlot;
-
-    const [timeLeft, setTimeLeft] = useState('');
-    // New State for Watch Status
-    const [watchStatus, setWatchStatus] = useState<'normal' | 'green' | 'orange' | 'red'>('normal');
-
-    const myCrewEntry = displaySlot?.crew.find((c: any) => c.userId === user?.id);
-    const isCheckedIn = !!myCrewEntry?.checkedInAt;
-
-    useEffect(() => {
-        if (!isCurrentlyOnWatch || !currentGlobalSlot) {
-            setTimeLeft('');
-            setWatchStatus('normal');
-            return;
-        }
-
-        const updateTimer = () => {
-            // Simple robust countdown for ISO strings
-            const end = new Date(currentGlobalSlot.end).getTime();
-            const now = new Date().getTime();
-            const diff = end - now;
-
-            if (diff <= 0) {
-                setTimeLeft('00:00:00');
-                return;
-            }
-
-            const h = Math.floor(diff / (1000 * 60 * 60));
-            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const s = Math.floor((diff % (1000 * 60)) / 1000);
-            setTimeLeft(`${h}h ${m}m ${s}s`);
-
-            // ALERT LOGIC
-            if (isCheckedIn && myCrewEntry && activeVessel) {
-                let lastActiveTime = 0;
-                const entry = myCrewEntry as any;
-                if (entry.lastActiveAt) {
-                    lastActiveTime = new Date(entry.lastActiveAt).getTime();
-                } else if (entry.checkedInAt) {
-                    const [hh, mm] = entry.checkedInAt.split(':');
-                    const d = new Date();
-                    d.setHours(Number(hh), Number(mm), 0, 0);
-                    lastActiveTime = d.getTime();
-                }
-
-                if (lastActiveTime > 0) {
-                    const diffMinutes = (now - lastActiveTime) / 1000 / 60;
-                    const interval = activeVessel.checkInInterval || 15;
-
-                    let newStatus: 'green' | 'orange' | 'red' = 'green';
-
-                    if (diffMinutes <= interval) {
-                        newStatus = 'green';
-                    } else if (diffMinutes <= interval + 1) {
-                        newStatus = 'orange';
-                    } else {
-                        newStatus = 'red';
-                    }
-
-                    setWatchStatus(newStatus);
-
-                    // AUDIO TRIGGERS
-                    // Only play roughly once every X seconds to avoid spamming
-                    const seconds = Math.floor(now / 1000);
-                    if (newStatus === 'orange') {
-                        // Gentle audio every 15 seconds
-                        if (seconds % 15 === 0) playAlarm('gentle');
-                    } else if (newStatus === 'red') {
-                        // Loud alarm every 5 seconds
-                        if (seconds % 5 === 0) playAlarm('loud');
-                    }
-                }
-            } else {
-                setWatchStatus('normal');
-            }
-        };
-
-        const timer = setInterval(updateTimer, 1000);
-        updateTimer();
-        return () => clearInterval(timer);
-    }, [isCurrentlyOnWatch, currentGlobalSlot, isCheckedIn, myCrewEntry, activeVessel]); // Added dependencies for clarity
+    const {
+        currentGlobalSlot,
+        isUserOnWatch: isCurrentlyOnWatch,
+        myNextSlot,
+        displaySlot,
+        timeLeft,
+        watchStatus,
+        isCheckedIn,
+        myCrewEntry,
+        nextGlobalSlot
+    } = useWatchLogic({ vessel: activeVessel, schedule, user });
 
     const handleJoin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -194,17 +76,12 @@ export default function CrewDashboard() {
         setError('');
         setSuccess('');
 
-        if (!selectedPosition) {
-            setError('Please select your position');
-            return;
-        }
+        // Removed position validation per user request
 
         // Validate request
         const result = await requestJoin(user.id, user.name, joinCode.trim().toUpperCase());
         if (result.success) {
-            // Store the selected position
-            updateUser({ customRole: selectedPosition } as any);
-            updateUserInStore(user.id, { customRole: selectedPosition });
+            // No need to update position here as it comes from signup
             setSuccess(result.message);
             setJoinCode('');
         } else {
@@ -265,31 +142,6 @@ export default function CrewDashboard() {
                                         placeholder="e.g. A1B2C3"
                                         className="uppercase font-mono tracking-widest text-center text-lg"
                                     />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Your Position</label>
-                                    <select
-                                        value={selectedPosition}
-                                        onChange={e => setSelectedPosition(e.target.value)}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                    >
-                                        <option value="">Select your position...</option>
-                                        <optgroup label="Bridge">
-                                            {CREW_POSITIONS.bridge.map(p => <option key={p} value={p}>{p}</option>)}
-                                        </optgroup>
-                                        <optgroup label="Deck">
-                                            {CREW_POSITIONS.deck.map(p => <option key={p} value={p}>{p}</option>)}
-                                        </optgroup>
-                                        <optgroup label="Interior">
-                                            {CREW_POSITIONS.interior.map(p => <option key={p} value={p}>{p}</option>)}
-                                        </optgroup>
-                                        <optgroup label="Galley">
-                                            {CREW_POSITIONS.galley.map(p => <option key={p} value={p}>{p}</option>)}
-                                        </optgroup>
-                                        <optgroup label="Engineering">
-                                            {CREW_POSITIONS.engineering.map(p => <option key={p} value={p}>{p}</option>)}
-                                        </optgroup>
-                                    </select>
                                 </div>
                                 {error && <p className="text-sm text-destructive">{error}</p>}
                                 {success && <p className="text-sm text-green-600 font-medium">{success}</p>}
@@ -365,7 +217,7 @@ export default function CrewDashboard() {
                                     <Users className="h-6 w-6" />
                                 </div>
                                 <div className="text-sm text-muted-foreground font-medium mb-1">Crew</div>
-                                <div className="font-bold text-lg leading-tight">{approvedCrew.length + 1}</div> {/* +1 for Captain */}
+                                <div className="font-bold text-lg leading-tight">{approvedCrew.length}</div>
                             </Card>
                         </div>
 
@@ -398,9 +250,11 @@ export default function CrewDashboard() {
                                                 </div>
 
                                                 {/* Timer for Crew */}
-                                                {isCurrentlyOnWatch && (
+                                                {(isCurrentlyOnWatch || myNextSlot) && timeLeft && (
                                                     <div className="mt-2 text-right">
-                                                        <div className="text-xs uppercase text-muted-foreground font-bold">Remaining</div>
+                                                        <div className="text-xs uppercase text-muted-foreground font-bold">
+                                                            {isCurrentlyOnWatch ? 'Remaining' : 'Off Time Remaining'}
+                                                        </div>
                                                         <div className="font-mono text-xl font-bold">{timeLeft}</div>
                                                     </div>
                                                 )}
@@ -408,7 +262,7 @@ export default function CrewDashboard() {
 
                                             {/* Check In Action */}
                                             {/* Check In Action */}
-                                            {isCurrentlyOnWatch && (
+                                            {isCurrentlyOnWatch && activeVessel?.checkInEnabled && (
                                                 <div className="pt-2">
                                                     {(() => {
                                                         let showCheckInButton = !isCheckedIn;
@@ -482,6 +336,26 @@ export default function CrewDashboard() {
                                     ) : (
                                         <div className="text-muted-foreground">No active watch.</div>
                                     )}
+
+                                    {/* Up Next Section */}
+                                    {nextGlobalSlot && (
+                                        <div className="mt-6 pt-6 border-t">
+                                            <div className="text-xs uppercase text-muted-foreground font-bold mb-3 flex justify-between items-center">
+                                                <span>Up Next</span>
+                                                <span>{formatTime(nextGlobalSlot.start)}</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                {nextGlobalSlot.crew.map((c: any) => (
+                                                    <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
+                                                        <div className="h-6 w-6 rounded-full bg-secondary border flex items-center justify-center font-bold text-xs shadow-sm">
+                                                            {c.userName[0]}
+                                                        </div>
+                                                        <span className="font-medium text-sm text-muted-foreground">{c.userName}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>
@@ -495,6 +369,8 @@ export default function CrewDashboard() {
                 {activeTab === 'crew' && (
                     <CrewListView approvedCrew={approvedCrew} schedule={schedule} vesselName={activeVessel.name} />
                 )}
+
+
 
             </main>
             <BottomTabs activeTab={activeTab} onTabChange={setActiveTab} />

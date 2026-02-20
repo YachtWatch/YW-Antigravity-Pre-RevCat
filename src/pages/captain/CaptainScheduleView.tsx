@@ -207,7 +207,7 @@ export function CaptainScheduleView({
                                     variant="outline"
                                     size="sm"
                                     className="h-8 px-3 gap-2 text-foreground font-medium"
-                                    onClick={() => navigate('/dashboard/captain/generate-schedule')}
+                                    onClick={() => navigate('/dashboard/captain/generate-schedule', { state: { schedule } })}
                                 >
                                     <img src="https://api.iconify.design/lucide:pencil.svg?color=%2364748b" className="h-3.5 w-3.5" alt="" />
                                     <span>Edit</span>

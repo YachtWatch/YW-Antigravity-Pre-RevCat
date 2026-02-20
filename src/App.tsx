@@ -4,7 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { ThemeProvider } from './components/theme-provider';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
 import { ToastProvider } from './components/ui/Toast';
 import { NotificationListener } from './components/NotificationListener';
@@ -14,6 +14,8 @@ import LandingPage from './pages/LandingPage';
 // import ConnectionTestPage from './pages/ConnectionTestPage';
 import LoginPage from './pages/auth/LoginPage';
 import SignupPage from './pages/auth/SignupPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import CaptainDashboard from './pages/captain/CaptainDashboard';
 import CrewDashboard from './pages/crew/CrewDashboard';
 import ProfilePage from './pages/ProfilePage';
@@ -24,6 +26,30 @@ import ScheduleGeneratorWizard from './pages/captain/ScheduleGeneratorWizard';
 import { ActiveWatchOverlay } from './components/ActiveWatchOverlay';
 import DiagnosticsPage from './pages/DiagnosticsPage';
 import SubscriptionPage from './pages/SubscriptionPage';
+
+function RootRedirect() {
+    const { user, loading } = useAuth();
+
+    // While checking auth status
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
+    // Native App: Redirect to Login (or Dashboard if session exists)
+    if (Capacitor.isNativePlatform()) {
+        if (user) {
+            return <Navigate to="/dashboard" replace />;
+        }
+        return <Navigate to="/auth/login" replace />;
+    }
+
+    // Web: Show Landing Page
+    return <LandingPage />;
+}
 
 function App() {
     useEffect(() => {
@@ -38,15 +64,6 @@ function App() {
                 StatusBar.setOverlaysWebView({ overlay: true });
                 document.body.classList.add('platform-ios');
             }
-
-            // Optional: Handle back button on Android
-            // App.addListener('backButton', ({ canGoBack }) => {
-            //     if(!canGoBack){
-            //         App.exitApp();
-            //     } else {
-            //         window.history.back();
-            //     }
-            // });
         }
     }, []);
 
@@ -60,12 +77,13 @@ function App() {
                             <div className="min-h-screen bg-background text-foreground font-sans antialiased">
                                 <BrowserRouter>
                                     <Routes>
-                                        {/* <Route path="/" element={<ConnectionTestPage />} /> */}
-                                        <Route path="/" element={<LandingPage />} />
+                                        <Route path="/" element={<RootRedirect />} />
 
                                         <Route path="/auth">
                                             <Route path="login" element={<LoginPage />} />
                                             <Route path="signup" element={<SignupPage />} />
+                                            <Route path="forgot-password" element={<ForgotPasswordPage />} />
+                                            <Route path="reset-password" element={<ResetPasswordPage />} />
                                             <Route path="confirm" element={<div className="p-8 text-center">Please check your email to confirm your account.</div>} />
                                         </Route>
 

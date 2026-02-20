@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { Switch } from '../components/ui/switch';
 import { ArrowLeft, Moon, Sun, Bell, Ship } from 'lucide-react';
 import { useTheme } from '../components/theme-provider';
 
@@ -9,7 +10,7 @@ import { useData } from '../contexts/DataContext';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const { getVessel, updateVesselSettings, updateUserInStore } = useData();
     const { theme, setTheme } = useTheme();
 
@@ -90,7 +91,7 @@ export default function SettingsPage() {
                         <CardContent className="space-y-6">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="text-sm font-medium">Measurement</label>
+                                    <label className="text-sm font-medium">Reminder</label>
                                     <div className="text-sm text-muted-foreground my-1">
                                         Select how many minutes before your watch you want to be notified.
                                     </div>
@@ -101,18 +102,20 @@ export default function SettingsPage() {
                                         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">1st Reminder</label>
                                         <select
                                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                            value={user?.reminder1 || 0}
+                                            value={String(user?.reminder1 || '0')}
                                             onChange={(e) => {
-                                                if (user?.id) updateUserInStore(user.id, { reminder1: Number(e.target.value) });
+                                                const val = Number(e.target.value);
+                                                updateUser({ reminder1: val });
+                                                if (user?.id) updateUserInStore(user.id, { reminder1: val });
                                             }}
                                         >
-                                            <option value={0}>None</option>
-                                            <option value={5}>5 min before</option>
-                                            <option value={10}>10 min before</option>
-                                            <option value={15}>15 min before</option>
-                                            <option value={20}>20 min before</option>
-                                            <option value={25}>25 min before</option>
-                                            <option value={30}>30 min before</option>
+                                            <option value="0">None</option>
+                                            <option value="5">5 min before</option>
+                                            <option value="10">10 min before</option>
+                                            <option value="15">15 min before</option>
+                                            <option value="20">20 min before</option>
+                                            <option value="25">25 min before</option>
+                                            <option value="30">30 min before</option>
                                         </select>
                                     </div>
 
@@ -120,18 +123,20 @@ export default function SettingsPage() {
                                         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">2nd Reminder</label>
                                         <select
                                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                            value={user?.reminder2 || 0}
+                                            value={String(user?.reminder2 || '0')}
                                             onChange={(e) => {
-                                                if (user?.id) updateUserInStore(user.id, { reminder2: Number(e.target.value) });
+                                                const val = Number(e.target.value);
+                                                updateUser({ reminder2: val });
+                                                if (user?.id) updateUserInStore(user.id, { reminder2: val });
                                             }}
                                         >
-                                            <option value={0}>None</option>
-                                            <option value={5}>5 min before</option>
-                                            <option value={10}>10 min before</option>
-                                            <option value={15}>15 min before</option>
-                                            <option value={20}>20 min before</option>
-                                            <option value={25}>25 min before</option>
-                                            <option value={30}>30 min before</option>
+                                            <option value="0">None</option>
+                                            <option value="5">5 min before</option>
+                                            <option value="10">10 min before</option>
+                                            <option value="15">15 min before</option>
+                                            <option value="20">20 min before</option>
+                                            <option value="25">25 min before</option>
+                                            <option value="30">30 min before</option>
                                         </select>
                                     </div>
                                 </div>
@@ -146,15 +151,20 @@ export default function SettingsPage() {
                     <div className="space-y-4">
                         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pl-1">Vessel Settings</h2>
                         <Card>
-                            <CardHeader>
-                                <div className="flex items-center gap-2">
-                                    <Ship className="h-5 w-5 text-primary" />
-                                    <CardTitle className="text-lg">Watch Configuration</CardTitle>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <Ship className="h-5 w-5 text-primary" />
+                                        <CardTitle className="text-lg">Watch Check-Ins</CardTitle>
+                                    </div>
                                 </div>
-                                <CardDescription>Configure watch intervals and rules for {vessel.name}</CardDescription>
+                                <Switch
+                                    checked={vessel.checkInEnabled}
+                                    onCheckedChange={(checked) => updateVesselSettings(vessel.id, { checkInEnabled: checked })}
+                                />
                             </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="space-y-3">
+                            <CardContent className="space-y-6 pt-4">
+                                <div className={vessel.checkInEnabled ? "space-y-3" : "space-y-3 opacity-50 pointer-events-none"}>
                                     <label className="text-sm font-medium">Watch Acknowledgement Interval</label>
                                     <div className="flex gap-2">
                                         {[15, 30, 45, 60].map(mins => (
@@ -170,20 +180,6 @@ export default function SettingsPage() {
                                         ))}
                                     </div>
                                     <p className="text-xs text-muted-foreground">Crew must check in every {vessel.checkInInterval} minutes while on watch.</p>
-                                </div>
-
-                                <div className="flex items-center justify-between border pt-4 mt-4 border-t-border">
-                                    <div>
-                                        <div className="font-medium text-sm">Allow Watch Swapping</div>
-                                        <div className="text-xs text-muted-foreground">Crew can swap watches without approval</div>
-                                    </div>
-                                    <Button
-                                        variant={vessel.allowWatchSwapping ? "default" : "outline"}
-                                        onClick={() => updateVesselSettings(vessel.id, { allowWatchSwapping: !vessel.allowWatchSwapping })}
-                                        size="sm"
-                                    >
-                                        {vessel.allowWatchSwapping ? "Enabled" : "Disabled"}
-                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>

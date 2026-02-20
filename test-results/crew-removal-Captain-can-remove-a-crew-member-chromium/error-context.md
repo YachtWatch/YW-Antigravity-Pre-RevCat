@@ -1,0 +1,111 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - img [ref=e8]
+        - generic [ref=e11]: YachtWatch
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - text: Captain of
+          - generic [ref=e14]: M/Y Test Yacht User 44kiwf
+        - button "U" [ref=e16] [cursor=pointer]:
+          - generic [ref=e17]: U
+          - img [ref=e18]
+  - main [ref=e20]:
+    - generic [ref=e22]:
+      - generic [ref=e24]:
+        - generic [ref=e25]:
+          - heading "Vessel Join Code" [level=3] [ref=e26]
+          - paragraph [ref=e27]: Share this code with your crew to let them join.
+        - generic [ref=e28]:
+          - generic "Click to copy" [ref=e29] [cursor=pointer]: BV42EE
+          - generic [ref=e30]: Click to Copy
+      - generic [ref=e31]:
+        - heading "Pending Requests 1 Refresh" [level=3] [ref=e32]:
+          - text: Pending Requests
+          - generic [ref=e33]: "1"
+          - button "Refresh" [ref=e34] [cursor=pointer]:
+            - img [ref=e35]
+            - text: Refresh
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - generic [ref=e43]: User vgy6mr
+            - generic [ref=e44]: Request sent today
+          - generic [ref=e45]:
+            - button [ref=e46] [cursor=pointer]:
+              - img [ref=e47]
+            - button [ref=e50] [cursor=pointer]:
+              - img [ref=e51]
+      - generic [ref=e53]:
+        - generic [ref=e54]:
+          - heading "Active Crew (1)" [level=3] [ref=e55]
+          - button "Export Crew List" [ref=e56] [cursor=pointer]:
+            - img [ref=e57]
+            - text: Export Crew List
+        - generic [ref=e62]:
+          - generic [ref=e63]: U
+          - generic [ref=e64]:
+            - generic [ref=e65]: User 44kiwf
+            - generic [ref=e66]: "Role: Captain"
+  - navigation [ref=e67]:
+    - generic [ref=e68]:
+      - button "Dashboard" [ref=e69] [cursor=pointer]:
+        - img [ref=e70]
+        - generic [ref=e73]: Dashboard
+      - button "Schedule" [ref=e74] [cursor=pointer]:
+        - img [ref=e75]
+        - generic [ref=e77]: Schedule
+      - button "Crew" [active] [ref=e78] [cursor=pointer]:
+        - img [ref=e79]
+        - generic [ref=e84]: Crew
+  - generic [ref=e86]:
+    - generic [ref=e87]:
+      - generic [ref=e88]:
+        - img [ref=e89]
+        - generic [ref=e92]: YachtWatch
+      - button [ref=e93] [cursor=pointer]:
+        - img [ref=e94]
+    - heading "Watch Schedules, Done..." [level=1] [ref=e98]
+    - generic [ref=e99]:
+      - generic [ref=e100]:
+        - img [ref=e102]
+        - generic [ref=e104]: Create and distribute watch schedules in seconds
+      - generic [ref=e105]:
+        - img [ref=e107]
+        - generic [ref=e110]: Export customs-ready crew lists
+      - generic [ref=e111]:
+        - img [ref=e113]
+        - generic [ref=e119]: QR code crew onboarding
+    - generic [ref=e120]:
+      - generic [ref=e121]:
+        - button "Monthly" [ref=e122] [cursor=pointer]
+        - button "Annually" [ref=e123] [cursor=pointer]
+        - generic [ref=e124]: SAVE 15%
+      - generic [ref=e125]: 14-Day Free Trial | Cancel Anytime
+    - generic [ref=e126]:
+      - generic [ref=e127] [cursor=pointer]:
+        - generic [ref=e128]: 1-5 CREW
+        - generic [ref=e129]:
+          - generic [ref=e130]: $25
+          - generic [ref=e131]: /mo
+        - generic [ref=e132]: Billed annually
+      - generic [ref=e134] [cursor=pointer]:
+        - generic [ref=e135]: Most Popular
+        - generic [ref=e136]: 6-10 CREW
+        - generic [ref=e137]:
+          - generic [ref=e138]: $74
+          - generic [ref=e139]: /mo
+        - generic [ref=e140]: Billed annually
+      - generic [ref=e143] [cursor=pointer]:
+        - generic [ref=e144]: 11+ CREW
+        - generic [ref=e146]: Contact Us
+        - generic [ref=e147]: Custom enterprise plan
+    - generic [ref=e149]:
+      - button "Get Started" [ref=e150] [cursor=pointer]
+      - generic [ref=e151]:
+        - img [ref=e152]
+        - text: Secure & Encrypted Payments
+```

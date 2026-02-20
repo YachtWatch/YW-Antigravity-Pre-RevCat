@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useData, UserData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { ScheduleMatrixView } from '../../components/ScheduleMatrixView';
-import { ArrowLeft, Calendar as CalendarIcon, Check } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { WatchSchedule } from '../../contexts/DataContext';
 import { supabase } from '../../lib/supabase';
@@ -14,37 +14,81 @@ export default function ScheduleGeneratorWizard() {
     const { users, createSchedule, getRequestsForVessel } = useData();
     const { user: currentUser } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Check for existing schedule to edit/remix
+    const existingSchedule = location.state?.schedule as WatchSchedule | undefined;
 
     // STEPS: 1=Config, 2=Crew, 3=Preview
     const [step, setStep] = useState(1);
 
-    const [watchType] = useState<WatchSchedule['watchType']>('Navigation');
-    const [scheduleName, setScheduleName] = useState('');
+    const [watchType] = useState<WatchSchedule['watchType']>(existingSchedule?.watchType || 'Navigation');
+    const [scheduleName, setScheduleName] = useState(existingSchedule?.name || '');
 
-    // Use strings for date inputs (YYYY-MM-DD)
+    // Initializers for date/time
     const [startDate, setStartDate] = useState(() => {
+        if (existingSchedule && existingSchedule.slots.length > 0) {
+            return new Date(existingSchedule.slots[0].start).toISOString().split('T')[0];
+        }
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         return tomorrow.toISOString().split('T')[0];
     });
 
-    // Time is now a string "HH:mm"
-    const [startTime, setStartTime] = useState("12:00");
+    const [startTime, setStartTime] = useState(() => {
+        if (existingSchedule && existingSchedule.slots.length > 0) {
+            return new Date(existingSchedule.slots[0].start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+        return "12:00";
+    });
 
     const [endDate, setEndDate] = useState(() => {
+        if (existingSchedule && existingSchedule.slots.length > 0) {
+            const lastSlot = existingSchedule.slots[existingSchedule.slots.length - 1];
+            return new Date(lastSlot.end).toISOString().split('T')[0];
+        }
         const nextWeek = new Date();
         nextWeek.setDate(nextWeek.getDate() + 8);
         return nextWeek.toISOString().split('T')[0];
     });
 
-    const [endTime, setEndTime] = useState("12:00");
+    const [endTime, setEndTime] = useState(() => {
+        if (existingSchedule && existingSchedule.slots.length > 0) {
+            const lastSlot = existingSchedule.slots[existingSchedule.slots.length - 1];
+            return new Date(lastSlot.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+        return "12:00";
+    });
 
-    const [duration, setDuration] = useState(4);
-    const [crewPerWatch, setCrewPerWatch] = useState(2);
-    const [isStaggered, setIsStaggered] = useState(true);
+    // Helper to calculate duration from existing slots if needed, or fallback to default
+    const [duration, setDuration] = useState(() => {
+        if (existingSchedule && existingSchedule.slots.length > 0) {
+            const s1 = new Date(existingSchedule.slots[0].start);
+            const s2 = new Date(existingSchedule.slots[0].end);
+            const diffHours = (s2.getTime() - s1.getTime()) / (1000 * 60 * 60);
+            return Math.round(diffHours);
+        }
+        return 4;
+    });
+
+    const [crewPerWatch, setCrewPerWatch] = useState(() => {
+        if (existingSchedule?.crewPerWatch) return existingSchedule.crewPerWatch;
+        if (existingSchedule && existingSchedule.slots.length > 0) {
+            return existingSchedule.slots[0].crew.length;
+        }
+        return 2;
+    });
+    const [isStaggered, setIsStaggered] = useState(existingSchedule?.isStaggered !== undefined ? existingSchedule.isStaggered : true);
 
     // -- Step 2: Crew State --
-    const [selectedCrewIds, setSelectedCrewIds] = useState<string[]>([]);
+    const [selectedCrewIds, setSelectedCrewIds] = useState<string[]>(() => {
+        if (existingSchedule) {
+            const ids = new Set<string>();
+            existingSchedule.slots.forEach(s => s.crew.forEach(c => ids.add(c.userId)));
+            return Array.from(ids);
+        }
+        return [];
+    });
 
     // -- Step 3: Preview State --
     const [previewSchedule, setPreviewSchedule] = useState<WatchSchedule | null>(null);
@@ -334,8 +378,8 @@ export default function ScheduleGeneratorWizard() {
                                         </div>
 
                                         {isSelected && (
-                                            <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-                                                <Check className="h-3.5 w-3.5" />
+                                            <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shadow-sm">
+                                                {rank}
                                             </div>
                                         )}
                                     </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { WatchSchedule } from '../contexts/DataContext';
 import { ChevronDown, ChevronUp, Calendar as CalendarIcon } from 'lucide-react';
@@ -46,13 +46,35 @@ export function ScheduleMatrixView({ schedule, className, currentUserId, showOnl
     };
 
     // Calculate current time position for Red Line
-    // This is tricky in a static list, but we can highlight the "Active" slot?
-    const now = new Date();
+    // We need to update this periodically to move the line
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        // Update every 1 minute to keep the line moving relatively smoothly
+        const timer = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 1000 * 60);
+
+        return () => clearInterval(timer);
+    }, []);
+
     const activeSlotId = rows.find(slot => {
         const start = new Date(slot.start);
         const end = new Date(slot.end);
-        return now >= start && now < end;
+        return currentTime >= start && currentTime < end;
     })?.id;
+
+    const getProgress = (slot: any) => {
+        const start = new Date(slot.start).getTime();
+        const end = new Date(slot.end).getTime();
+        const now = currentTime.getTime();
+
+        if (now < start) return 0;
+        if (now > end) return 100;
+        const total = end - start;
+        const current = now - start;
+        return (current / total) * 100;
+    };
 
 
     // 3. Group slots by Day
@@ -177,7 +199,10 @@ export function ScheduleMatrixView({ schedule, className, currentUserId, showOnl
 
                                                             {/* Active Line - Highest Z-Index */}
                                                             {slot.id === activeSlotId && (
-                                                                <div className="absolute left-0 right-0 top-1/2 h-[2px] bg-red-500 z-20 shadow-[0_0_4px_rgba(239,68,68,0.5)] pointer-events-none">
+                                                                <div
+                                                                    className="absolute left-0 right-0 h-[2px] bg-red-500 z-20 shadow-[0_0_4px_rgba(239,68,68,0.5)] pointer-events-none transition-all duration-300 ease-in-out"
+                                                                    style={{ top: `${getProgress(slot)}%` }}
+                                                                >
                                                                     <div className="absolute -left-1 -top-[3px] w-2 h-2 rounded-full bg-red-500" />
                                                                 </div>
                                                             )}

@@ -39,37 +39,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     useEffect(() => {
-        // Check active session
-        const getSession = async () => {
-            try {
-                // Wrap session check in timeout
-                const { data } = await withTimeout(
-                    supabase.auth.getSession(),
-                    5000,
-                    'Session check timed out'
-                );
+        // Use onAuthStateChange as the single source of truth to avoid race conditions
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
 
-                const session = data?.session;
 
-                if (session?.user) {
+            if (session?.user) {
+                // Determine if this is a new user or just a refresh
+                if (!user || user.id !== session.user.id) {
+                    setLoading(true);
                     await fetchProfile(session.user.id, session.user.email!, session.user.user_metadata);
                 } else {
+                    // We already have the user, just update loading if needed
                     setLoading(false);
                 }
-            } catch (err) {
-                console.error("Auth init error:", err);
-                // Ensure we don't hang
-                setLoading(false);
-            }
-        };
-
-        getSession();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (session?.user) {
-                // Ensure loading is true while we fetch the profile to prevent premature redirects
-                setLoading(true);
-                await fetchProfile(session.user.id, session.user.email!, session.user.user_metadata);
             } else {
                 setUser(null);
                 setLoading(false);
@@ -79,9 +61,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => subscription.unsubscribe();
     }, []);
 
-    const fetchProfile = async (userId: string, email: string, metadata?: any) => {
-        console.log(`🔍 [AuthDebug] Fetching profile for ${userId} (${email})`);
+    const fetchProfile = async (userId: string, email: string, metadata?: any, showLoading = true) => {
+
         try {
+            if (showLoading) setLoading(true);
             // Check if profile exists
             const { data, error } = await withTimeout(
                 supabase.from('profiles').select('*').eq('id', userId).single() as any,
@@ -89,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 'Profile fetch timed out'
             );
 
-            console.log(`🔍 [AuthDebug] Raw DB Result:`, { data, error });
+
 
             if (error) {
                 if (error.code === 'PGRST116') {
@@ -149,7 +132,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     role: (metadata?.role === 'captain' || metadata?.role === 'crew') ? metadata.role : 'crew' as UserRole,
                 };
 
-                setUser(fallbackUser);
+                setUser(currentUser => {
+                    // SAFETY: If we already have this user and they have a vesselId, don't downgrade them
+                    // just because of a temporary fetch error (timeout/network).
+                    if (currentUser && currentUser.id === userId && currentUser.vesselId) {
+                        console.warn("⚠️ Keeping existing user state despite fetch error to prevent redirect.");
+                        return currentUser;
+                    }
+                    return fallbackUser;
+                });
 
             } else if (data) {
                 // Profile found
@@ -162,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         // Check metadata first (STRONGEST SIGNAL)
                         const metadataRole = metadata?.role;
                         if (metadataRole === 'captain') {
-                            console.log("⚓️ Self-healing detected: Metadata says 'captain' but profile says 'crew'. Promoting to Captain.");
+
                             finalRole = 'captain';
                             // Persist the fix
                             await supabase.from('profiles').update({ role: 'captain' }).eq('id', userId);
@@ -175,7 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                                 .single();
 
                             if (ownedVessel) {
-                                console.log("⚓️ Self-healing detected: User owns vessel but has 'crew' role. Promoting to Captain.");
+
                                 finalRole = 'captain';
                                 // Persist the fix
                                 await supabase.from('profiles').update({ role: 'captain' }).eq('id', userId);
@@ -195,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         .maybeSingle(); // Use maybeSingle to avoid 406 errors on 0 rows
 
                     if (ownedVessel) {
-                        console.log("⚓️ Captain Ownership logic: Found owned vessel.", ownedVessel.id);
+
                         finalVesselId = ownedVessel.id;
 
                         // Fix the profile link if it was wrong
@@ -239,7 +230,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 email: email,
                 role: (metadata?.role === 'captain' || metadata?.role === 'crew') ? metadata.role : 'crew' as UserRole,
             };
-            setUser(fallbackUser);
+            setUser(currentUser => {
+                if (currentUser && currentUser.id === userId && currentUser.vesselId) {
+                    return currentUser;
+                }
+                return fallbackUser;
+            });
         } finally {
             setLoading(false);
         }
@@ -259,7 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.user) {
-                await fetchProfile(session.user.id, session.user.email!, session.user.user_metadata);
+                await fetchProfile(session.user.id, session.user.email!, session.user.user_metadata, false);
             }
         } catch (e) {
             console.error("Refresh failed", e);

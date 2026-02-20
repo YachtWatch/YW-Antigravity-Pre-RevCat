@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { LogOut, Settings, User, ChevronDown } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { LogOut, Settings, User, Menu } from 'lucide-react';
+
 
 export function ProfileDropdown() {
     const { user, logout } = useAuth();
@@ -24,10 +24,7 @@ export function ProfileDropdown() {
                 }}
                 className="flex items-center gap-2 p-1 rounded-full hover:bg-accent transition-colors cursor-pointer relative z-[101]"
             >
-                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
-                    {user?.name?.[0]?.toUpperCase()}
-                </div>
-                <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+                <Menu className="h-6 w-6 text-primary" />
             </button>
 
             {isOpen && (

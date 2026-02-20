@@ -1,7 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 
-
+import { NotificationService } from '../services/NotificationService';
 export interface Vessel {
     id: string;
     captainId: string;
@@ -10,7 +10,7 @@ export interface Vessel {
     type: 'motor' | 'sail';
     capacity: number;
     joinCode: string;
-    allowWatchSwapping: boolean;
+    checkInEnabled: boolean;
     checkInInterval: number;
 }
 
@@ -47,7 +47,7 @@ export interface UserData {
     name: string;
     role: 'captain' | 'crew';
     customRole?: string; // e.g. "Bosun", "Chief Stew"
-    vesselId?: string;
+    vesselId?: string | null;
     // Extended profile fields for Crew List Export
     nationality?: string;
     passportNumber?: string;
@@ -60,25 +60,25 @@ interface DataContextType {
     vessels: Vessel[];
     requests: JoinRequest[];
     schedules: WatchSchedule[];
-    users: UserData[];
-    loading: boolean;
-    updateUserInStore: (userId: string, updates: Partial<UserData>) => Promise<void>;
     createVessel: (vessel: Omit<Vessel, 'id' | 'joinCode'>) => Promise<Vessel | null>;
     getVessel: (id: string) => Vessel | undefined;
     getVesselByJoinCode: (code: string) => Vessel | undefined;
     requestJoin: (userId: string, userName: string, code: string) => Promise<{ success: boolean; message: string }>;
     getRequestsForVessel: (vesselId: string) => JoinRequest[];
-    updateRequestStatus: (requestId: string, status: 'approved' | 'declined') => void;
+    updateRequestStatus: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
     getCrewVessel: (userId: string) => Vessel | undefined;
     getPendingRequest: (userId: string) => JoinRequest | undefined;
-    createSchedule: (schedule: Omit<WatchSchedule, 'id'>) => void;
-    updateScheduleSlot: (vesselId: string, slotId: number, crewIds: string[]) => void;
-    updateScheduleSettings: (vesselId: string, updates: Partial<WatchSchedule>) => void;
+    createSchedule: (schedule: Omit<WatchSchedule, 'id'>) => Promise<void>;
+    updateScheduleSlot: (vesselId: string, slotId: number, crewIds: string[]) => Promise<void>;
+    updateScheduleSettings: (vesselId: string, updates: Partial<WatchSchedule>) => Promise<void>;
     getSchedule: (vesselId: string) => WatchSchedule | undefined;
-    removeCrew: (vesselId: string, userId: string) => void;
+    users: UserData[];
+    updateUserInStore: (userId: string, updates: Partial<UserData>) => Promise<void>;
+    loading: boolean;
+    removeCrew: (vesselId: string, userId: string) => Promise<void>;
     updateCrewRole: (userId: string, newRole: string) => void;
-    updateVesselSettings: (vesselId: string, updates: Partial<Vessel>) => void;
-    checkInToWatch: (vesselId: string, slotId: number, userId: string) => void;
+    updateVesselSettings: (vesselId: string, updates: Partial<Vessel>) => Promise<void>;
+    checkInToWatch: (vesselId: string, slotId: number, userId: string) => Promise<void>;
     confirmWatchAlert: (vesselId: string, slotId: number, userId: string) => Promise<void>;
     deleteSchedule: (vesselId: string) => Promise<void>;
     refreshData: () => Promise<void>;
@@ -93,7 +93,7 @@ interface SupabaseProfile {
     name: string;
     role: 'captain' | 'crew';
     custom_role?: string;
-    vessel_id?: string;
+    vessel_id?: string | null;
     nationality?: string;
     passport_number?: string;
     date_of_birth?: string;
@@ -109,7 +109,7 @@ interface SupabaseVessel {
     type: 'motor' | 'sail';
     capacity: number;
     join_code: string;
-    allow_watch_swapping: boolean;
+    check_in_enabled: boolean;
     check_in_interval?: number;
 }
 
@@ -167,7 +167,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         type: v.type,
         capacity: v.capacity,
         joinCode: v.join_code,
-        allowWatchSwapping: v.allow_watch_swapping,
+        checkInEnabled: v.check_in_enabled,
         checkInInterval: v.check_in_interval || 15
     });
 
@@ -189,6 +189,91 @@ export function DataProvider({ children }: { children: ReactNode }) {
         slots: s.slots
     });
 
+    // State to track if we have loaded initial data to avoid spamming notifications on startup
+    const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+    // Refs to track known IDs for diffing
+    const knownRequestIds = useRef<Set<string>>(new Set());
+    const knownScheduleIds = useRef<Set<string>>(new Set());
+
+    const refreshData = async () => {
+
+        const { data: pData } = await supabase.from('profiles').select('*');
+        if (pData) setUsers((pData as SupabaseProfile[]).map(mapProfile));
+
+        const { data: vData } = await supabase.from('vessels').select('*');
+        if (vData) setVessels((vData as SupabaseVessel[]).map(mapVessel));
+
+        const { data: rData } = await supabase.from('join_requests').select('*');
+        if (rData) {
+            const newRequests = (rData as SupabaseJoinRequest[]).map(mapRequest);
+            setRequests(newRequests);
+
+            // Notification Logic for Join Requests
+            if (initialLoadComplete) {
+                newRequests.forEach(req => {
+                    if (!knownRequestIds.current.has(req.id)) {
+                        // New Request Found!
+                        handleNewRequestNotification(req);
+                        knownRequestIds.current.add(req.id);
+                    }
+                });
+
+                // Track status changes for existing requests (e.g. Approved/Declined) needs more complex diffing
+                // For now, we rely on the Realtime event for status updates, or we can add a 'knownStatus' map.
+                // Let's stick to new requests for polling to keep it simple, as status updates are less critical to miss by a few seconds
+                // unless we implement a full state diff.
+            } else {
+                // Initial Load - just populate
+                newRequests.forEach(req => knownRequestIds.current.add(req.id));
+            }
+        }
+
+        // ORDER BY created_at DESC to ensure we always get the latest schedule first
+        const { data: sData } = await supabase.from('schedules').select('*').order('created_at', { ascending: false });
+        if (sData) {
+
+            const newSchedules = (sData as SupabaseSchedule[]).map(mapSchedule);
+            setSchedules(newSchedules);
+
+            // Notification Logic for Schedules
+            if (initialLoadComplete) {
+                newSchedules.forEach(sch => {
+                    if (!knownScheduleIds.current.has(sch.id)) {
+                        handleNewScheduleNotification(sch);
+                        knownScheduleIds.current.add(sch.id);
+                    }
+                });
+            } else {
+                newSchedules.forEach(sch => knownScheduleIds.current.add(sch.id));
+            }
+        }
+
+        if (!initialLoadComplete) setInitialLoadComplete(true);
+    };
+
+    const handleNewRequestNotification = async (req: JoinRequest) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        // Check if I am the captain
+        const { data: vessel } = await supabase.from('vessels').select('captain_id, name').eq('id', req.vesselId).single();
+        if (vessel && vessel.captain_id === user.id) {
+            NotificationService.sendLocalAlert('New Join Request', `${req.userName} requests to join ${vessel.name}`);
+        }
+        // Also check if *I* am the one who was approved (status change) - but this function detects NEW requests (pending).
+        // Approved requests are updates, not inserts. 
+    };
+
+    const handleNewScheduleNotification = async (sch: WatchSchedule) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        // Check if I am a crew member of this vessel
+        const { data: profile } = await supabase.from('profiles').select('vessel_id').eq('id', user.id).single();
+        if (profile && profile.vessel_id === sch.vesselId) {
+            NotificationService.sendLocalAlert('New Watch Schedule', `A new schedule "${sch.name}" has been published.`);
+        }
+    };
+
     useEffect(() => {
         const loadData = async () => {
             await refreshData();
@@ -197,49 +282,91 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         loadData();
 
+        // Polling Fallback (every 5 seconds)
+        const pollInterval = setInterval(() => {
+            refreshData();
+        }, 5000);
+
         // Realtime Subscription
-        const channel = supabase.channel('db-changes')
-            .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
-                console.log("🔔 Realtime Update received:", payload);
+        const channel = supabase.channel('vital-updates')
+            // Join Requests (INSERT) -> Just refresh (polling handles notification via diff)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'join_requests' }, () => {
                 refreshData();
             })
-            .subscribe((status) => {
-                console.log("📡 Realtime Subscription Status:", status);
-            });
+            // Join Requests (UPDATE) -> Notify Crew (Approved/Declined)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'join_requests' }, async (payload: any) => {
+                await refreshData();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                const updatedRequest = payload.new;
+                if (updatedRequest.user_id === user.id) {
+                    if (updatedRequest.status === 'approved') {
+                        NotificationService.sendLocalAlert('Welcome Aboard!', `Your request to join has been approved.`);
+                    } else if (updatedRequest.status === 'declined') {
+                        NotificationService.sendLocalAlert('Request Declined', `Your request to join was declined.`);
+                    }
+                }
+            })
+            // Schedules (INSERT) -> Just refresh (polling handles notification)
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'schedules' }, () => {
+                refreshData();
+            })
+            // Schedules (UPDATE) -> Notify Crew of changes
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'schedules' }, async (payload: any) => {
+                await refreshData();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                const updatedSchedule = payload.new;
+                // Check if I am a crew member of this vessel (or the captain)
+                const { data: profile } = await supabase.from('profiles').select('vessel_id').eq('id', user.id).single();
+
+                if (profile && profile.vessel_id === updatedSchedule.vessel_id) {
+                    NotificationService.sendLocalAlert('Schedule Updated', `The schedule "${updatedSchedule.name}" has been updated.`);
+                }
+            })
+            .subscribe();
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                console.log("👀 App became visible, refreshing data...");
                 refreshData();
             }
         };
 
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-
         return () => {
+            clearInterval(pollInterval);
             supabase.removeChannel(channel);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, []);
 
-    const refreshData = async () => {
-        console.log("🔄 Fetching Fresh Data...");
-        const { data: pData } = await supabase.from('profiles').select('*');
-        if (pData) setUsers((pData as SupabaseProfile[]).map(mapProfile));
+    // Effect to schedule local notifications for upcoming watches
+    useEffect(() => {
+        const scheduleReminders = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
 
-        const { data: vData } = await supabase.from('vessels').select('*');
-        if (vData) setVessels((vData as SupabaseVessel[]).map(mapVessel));
+            const currentUser = users.find(u => u.id === user.id);
+            if (!currentUser) return;
 
-        const { data: rData } = await supabase.from('join_requests').select('*');
-        if (rData) setRequests((rData as SupabaseJoinRequest[]).map(mapRequest));
+            const mySchedule = schedules.find(s => s.vesselId === currentUser.vesselId);
+            if (mySchedule) {
+                await NotificationService.scheduleWatchReminders(
+                    mySchedule,
+                    currentUser.id,
+                    currentUser.reminder1 || 0,
+                    currentUser.reminder2 || 0
+                );
+            }
+        };
 
-        // ORDER BY created_at DESC to ensure we always get the latest schedule first
-        const { data: sData } = await supabase.from('schedules').select('*').order('created_at', { ascending: false });
-        if (sData) {
-            console.log(`📅 Loaded ${sData.length} schedules.`);
-            setSchedules((sData as SupabaseSchedule[]).map(mapSchedule));
-        }
-    };
+        scheduleReminders();
+    }, [schedules, users]); // Re-schedule when data updates
+
+    // Initial Permission Request
+    useEffect(() => {
+        NotificationService.requestPermissions();
+    }, []);
 
     const updateUserInStore = async (userId: string, updates: Partial<UserData>) => {
         const dbUpdates: Partial<SupabaseProfile> = {};
@@ -252,8 +379,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (updates.dateOfBirth) dbUpdates.date_of_birth = updates.dateOfBirth;
         if (updates.reminder1 !== undefined) dbUpdates.reminder_1 = updates.reminder1;
         if (updates.reminder2 !== undefined) dbUpdates.reminder_2 = updates.reminder2;
-
-        console.log(`📝 STRICT UPDATE: Updating user ${userId}`, dbUpdates);
 
         const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', userId);
 
@@ -279,11 +404,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
             type: data.type,
             capacity: data.capacity,
             join_code: joinCode,
-            allow_watch_swapping: data.allowWatchSwapping,
+            check_in_enabled: data.checkInEnabled,
             check_in_interval: data.checkInInterval
         };
 
-        console.log("🚀 STRICT CREATE: Attempting to create vessel:", dbVessel);
+
 
         // 1. Insert Vessel
         const { error: insertError } = await supabase.from('vessels').insert(dbVessel);
@@ -306,12 +431,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
             return null;
         }
 
-        console.log("✅ VESSEL VERIFIED. Linking to Captain...");
+
 
         // 3. Link to Captain Profile
         await updateUserInStore(data.captainId, { vesselId: tempId });
 
-        console.log("🎉 Vessel Setup Complete.");
+
         await refreshData();
         return mapVessel(verifyData);
     };
@@ -368,10 +493,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const getPendingRequest = (userId: string) => requests.find(r => r.userId === userId && r.status === 'pending');
 
-    // ... (lines 239-365 unchanged)
-
     const createSchedule = async (schedule: Omit<WatchSchedule, 'id'>) => {
-        console.log("🗓️ creating schedule for", schedule.vesselId);
+
 
         // 1. Delete ALL existing schedules for this vessel to prevent duplicates
         const { error: deleteError } = await supabase.from('schedules').delete().eq('vessel_id', schedule.vesselId);
@@ -379,7 +502,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             console.error("❌ Failed to clear old schedules:", deleteError);
             // We proceed anyway, but warn
         } else {
-            console.log("🗑️ Cleared old schedules.");
+
         }
 
         // 2. Insert new schedule
@@ -396,7 +519,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             return;
         }
 
-        console.log("✅ Schedule published.");
+
         await refreshData();
     };
 
@@ -447,18 +570,56 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const getSchedule = (vesselId: string) => schedules.find(s => s.vesselId === vesselId);
 
     const removeCrew = async (vesselId: string, userId: string) => {
-        await updateUserInStore(userId, { vesselId: undefined });
-
-        await supabase.from('join_requests').delete().eq('user_id', userId).eq('vessel_id', vesselId);
-
         const schedule = schedules.find(s => s.vesselId === vesselId);
+
+        // Check if user is in an active schedule
         if (schedule) {
-            const newSlots = schedule.slots.map(slot => ({
-                ...slot,
-                crew: slot.crew.filter((c: any) => c.userId !== userId)
-            }));
-            await supabase.from('schedules').update({ slots: newSlots }).eq('id', schedule.id);
+            const isUserInSchedule = schedule.slots.some(slot =>
+                slot.crew.some(c => c.userId === userId)
+            );
+
+            if (isUserInSchedule) {
+                alert("This user is involved in a live watch schedule, and therefore cannot be removed from the vessel at this time. Please remove them from the schedule slots and try again.");
+                return;
+            }
         }
+
+        // Proceed with removal if not in schedule
+
+
+        // Optimistic UI Update
+        setRequests(prev => prev.filter(r => !(r.userId === userId && r.vesselId === vesselId)));
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, vesselId: undefined } : u));
+
+        try {
+            // Use Secure RPC (v2)
+            const { error } = await supabase.rpc('remove_crew_member_v2', {
+                target_user_id: userId,
+                target_vessel_id: vesselId
+            });
+
+            if (error) {
+                console.error("Failed to remove crew member (RPC):", error);
+                throw error;
+            } else {
+
+            }
+        } catch (e) {
+            console.error("Removal failed:", e);
+            let errorMessage = "Unknown error";
+            if (e instanceof Error) {
+                errorMessage = e.message;
+            } else if (typeof e === 'object' && e !== null && 'message' in e) {
+                errorMessage = (e as any).message;
+            } else if (typeof e === 'string') {
+                errorMessage = e;
+            }
+            alert(`Failed to remove crew member: ${errorMessage}`);
+            // Revert optimistic update by forcing a refresh
+            await refreshData();
+            return;
+        }
+
         await refreshData();
     };
 
@@ -518,7 +679,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (updates.name) dbUpdates.name = updates.name;
         if (updates.length) dbUpdates.length = updates.length;
         if (updates.capacity) dbUpdates.capacity = updates.capacity;
-        if (updates.allowWatchSwapping !== undefined) dbUpdates.allow_watch_swapping = updates.allowWatchSwapping;
+        if (updates.checkInEnabled !== undefined) dbUpdates.check_in_enabled = updates.checkInEnabled;
         if (updates.checkInInterval) dbUpdates.check_in_interval = updates.checkInInterval;
 
         await supabase.from('vessels').update(dbUpdates).eq('id', vesselId);

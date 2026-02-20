@@ -25,7 +25,7 @@ export function useNotifications() {
 
         // If we have an active schedule, schedule reminders
         if (activeSchedule) {
-            console.log("⏰ [useNotifications] Scheduling Watch Reminders...", { r1: user.reminder1, r2: user.reminder2 });
+
             NotificationService.scheduleWatchReminders(
                 activeSchedule,
                 user.id,
@@ -39,7 +39,7 @@ export function useNotifications() {
     useEffect(() => {
         if (!user) return;
 
-        console.log("🔔 [useNotifications] Setting up Realtime Listeners for:", user.role);
+
 
         // CHANNEL 0: PROFILE CHANGES (Self) - Ensure AuthContext stays in sync
         const profileChannel = supabase.channel('profile-updates')
@@ -51,10 +51,15 @@ export function useNotifications() {
                     table: 'profiles',
                     filter: `id=eq.${user.id}`
                 },
-                (payload) => {
-                    console.log("👤 Profile Updated!", payload);
-                    refreshUser(); // Sync AuthContext
-                    refreshData(); // Sync DataContext
+                (_payload) => {
+                    // Debounce refresh to prevent loops from self-healing updates
+                    const now = Date.now();
+                    const lastRefresh = parseInt(sessionStorage.getItem('lastProfileRefresh') || '0');
+                    if (now - lastRefresh > 2000) {
+                        sessionStorage.setItem('lastProfileRefresh', now.toString());
+                        refreshUser(); // Sync AuthContext
+                        refreshData(); // Sync DataContext
+                    }
                 }
             )
             .subscribe();
@@ -71,8 +76,8 @@ export function useNotifications() {
                         table: 'join_requests',
                         filter: `vessel_id=eq.${user.vesselId}`
                     },
-                    (payload) => {
-                        console.log("🔔 New Join Request!", payload);
+                    (_payload) => {
+
                         NotificationService.sendLocalAlert(
                             'New Crew Request',
                             `A new crew member has requested to join your vessel.`
@@ -98,7 +103,7 @@ export function useNotifications() {
                         filter: `user_id=eq.${user.id}`
                     },
                     (payload: any) => {
-                        console.log("🔔 Request Update!", payload);
+
                         if (payload.new.status === 'approved' && payload.old.status !== 'approved') {
                             NotificationService.sendLocalAlert(
                                 'Request Approved!',
@@ -125,7 +130,7 @@ export function useNotifications() {
                         filter: `vessel_id=eq.${user.vesselId}`
                     },
                     (payload) => {
-                        console.log("🔔 Schedule Event!", payload);
+
                         if (payload.eventType === 'INSERT') {
                             NotificationService.sendLocalAlert(
                                 'New Schedule',
@@ -139,7 +144,7 @@ export function useNotifications() {
                             );
                             refreshData();
                         } else if (payload.eventType === 'DELETE') {
-                            console.log("🔔 Schedule Deleted!");
+
                             refreshData();
                         }
                     }

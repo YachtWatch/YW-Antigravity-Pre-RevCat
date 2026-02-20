@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { BottomTabs } from '../../components/ui/BottomTabs';
 import { ProfileDropdown } from '../../components/ui/ProfileDropdown';
-import { Ship, Anchor, Clock, Users, Sailboat, Settings as SettingsIcon, CheckCircle } from 'lucide-react';
+import { Ship, Anchor, Clock, Users, Sailboat, CheckCircle } from 'lucide-react';
 import { generateSchedule as generateScheduleLogic } from '../../lib/scheduler';
 import { CaptainScheduleView } from './CaptainScheduleView';
 import { CaptainCrewView } from './CaptainCrewView';
@@ -14,49 +14,18 @@ import { getCurrentSlot } from '../../lib/time-utils';
 import { NoScheduleState } from '../../components/NoScheduleState';
 import CustomPaywall from '../../components/subscription/CustomPaywall';
 import { useSubscription } from '../../context/SubscriptionContext';
+import { useWatchLogic } from '../../hooks/useWatchLogic';
 
 const formatTime = (isoString: string) => {
     if (!isoString) return '';
     return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 };
 
-// Alert Audio Helper
-const playAlarm = (type: 'gentle' | 'loud') => {
-    try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContext) return;
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
 
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        if (type === 'gentle') {
-            osc.frequency.setValueAtTime(440, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.5);
-        } else {
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            osc.frequency.setValueAtTime(0, ctx.currentTime + 0.1);
-            osc.frequency.setValueAtTime(800, ctx.currentTime + 0.2);
-            gain.gain.setValueAtTime(0.3, ctx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.5);
-        }
-    } catch (e) {
-        console.error("Audio play failed", e);
-    }
-};
 
 export default function CaptainDashboard() {
     const { user, updateUser } = useAuth();
-    const { createVessel, getVessel, getRequestsForVessel, updateRequestStatus, createSchedule, getSchedule, updateUserInStore, updateScheduleSlot, updateScheduleSettings, removeCrew, updateCrewRole, updateVesselSettings, users, refreshData, deleteSchedule, loading, checkInToWatch } = useData();
+    const { createVessel, getVessel, getRequestsForVessel, updateRequestStatus, createSchedule, getSchedule, updateUserInStore, updateScheduleSlot, updateScheduleSettings, removeCrew, updateCrewRole, users, refreshData, deleteSchedule, loading, checkInToWatch } = useData();
     const { isSubscribed, loading: subLoading } = useSubscription();
     const [activeTab, setActiveTab] = useState<'dashboard' | 'schedule' | 'crew'>('dashboard');
     const [showPaywall, setShowPaywall] = useState(false);
@@ -81,102 +50,21 @@ export default function CaptainDashboard() {
     const approvedCrew = vessel ? getRequestsForVessel(vessel.id).filter(r => r.status === 'approved') : [];
 
     // --- WATCH LOGIC START ---
-    const now = new Date();
-    const activeSlot = schedule ? getCurrentSlot(schedule.slots) : undefined;
-    const isCaptainOnWatch = activeSlot?.crew.some((c: any) => c.userId === user?.id);
+    const {
+        currentGlobalSlot: activeSlot, // Alias to match existing usage if desired, or update usages
+        isUserOnWatch: isCaptainOnWatch,
+        myNextSlot,
+        displaySlot,
+        timeLeft,
+        watchStatus,
+        isCheckedIn,
+        myCrewEntry,
+        nextGlobalSlot
+    } = useWatchLogic({ vessel, schedule, user });
 
-    const myNextSlot = schedule?.slots
-        .filter(slot => {
-            // Handle ISO Strings
-            if (slot.start.includes('T')) {
-                const start = new Date(slot.start);
-                return start > now && slot.crew.some((c: any) => c.userId === user?.id);
-            }
-            return false;
-        })
-        .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0];
-
-    const displaySlot = isCaptainOnWatch ? activeSlot : myNextSlot;
-
-    // Timer & Status Logic (Mirrored from CrewDashboard)
-    const [timeLeft, setTimeLeft] = useState('');
-    const [watchStatus, setWatchStatus] = useState<'normal' | 'green' | 'orange' | 'red'>('normal');
-
-    const myCrewEntry = activeSlot?.crew.find((c: any) => c.userId === user?.id);
-    const isCheckedIn = !!myCrewEntry?.checkedInAt;
-
-    useEffect(() => {
-        if (!isCaptainOnWatch || !activeSlot) {
-            setTimeLeft('');
-            setWatchStatus('normal');
-            return;
-        }
-
-        const updateTimer = () => {
-            const end = new Date(activeSlot.end).getTime();
-            const nowTime = new Date().getTime();
-            const diff = end - nowTime;
-
-            if (diff <= 0) {
-                setTimeLeft('00:00:00');
-                return;
-            }
-
-            const h = Math.floor(diff / (1000 * 60 * 60));
-            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const s = Math.floor((diff % (1000 * 60)) / 1000);
-            setTimeLeft(`${h}h ${m}m ${s}s`);
-
-            // ALERT LOGIC
-            if (isCheckedIn && myCrewEntry && vessel) {
-                let lastActiveTime = 0;
-                const entry = myCrewEntry as any;
-                if (entry.lastActiveAt) {
-                    lastActiveTime = new Date(entry.lastActiveAt).getTime();
-                } else if (entry.checkedInAt) {
-                    const [hh, mm] = entry.checkedInAt.split(':');
-                    const d = new Date();
-                    d.setHours(Number(hh), Number(mm), 0, 0);
-                    // Handle edge case where check-in was yesterday
-                    if (d.getTime() > nowTime + 1000 * 60 * 60) {
-                        d.setDate(d.getDate() - 1);
-                    }
-                    lastActiveTime = d.getTime();
-                }
-
-                if (lastActiveTime > 0) {
-                    const diffMinutes = (nowTime - lastActiveTime) / 1000 / 60;
-                    const interval = vessel.checkInInterval || 15;
-
-                    let newStatus: 'green' | 'orange' | 'red' = 'green';
-
-                    if (diffMinutes <= interval) {
-                        newStatus = 'green';
-                    } else if (diffMinutes <= interval + 1) {
-                        newStatus = 'orange';
-                    } else {
-                        newStatus = 'red';
-                    }
-
-                    setWatchStatus(newStatus);
-
-                    // Audio Logic
-                    const seconds = Math.floor(nowTime / 1000);
-                    if (newStatus === 'orange') {
-                        if (seconds % 15 === 0) playAlarm('gentle');
-                    } else if (newStatus === 'red') {
-                        if (seconds % 5 === 0) playAlarm('loud');
-                    }
-                }
-            } else {
-                setWatchStatus('normal');
-            }
-        };
-
-        const timer = setInterval(updateTimer, 1000);
-        updateTimer();
-        return () => clearInterval(timer);
-    }, [isCaptainOnWatch, activeSlot, isCheckedIn, myCrewEntry, vessel]);
+    // Legacy mapping if needed, or direct usage. 
+    // activeSlot was used for "On Watch Now" card.
+    // isCaptainOnWatch used for "Current Watch Status".
 
     const handleCheckIn = () => {
         if (!vessel || !activeSlot || !user) return;
@@ -204,7 +92,7 @@ export default function CaptainDashboard() {
             length: Number(vesselLength),
             type: vesselType,
             capacity: Number(vesselCapacity),
-            allowWatchSwapping: false,
+            checkInEnabled: true,
             checkInInterval: 15
         });
 
@@ -422,16 +310,18 @@ export default function CaptainDashboard() {
                                                         </div>
 
                                                         {/* Timer */}
-                                                        {isCaptainOnWatch && (
+                                                        {(isCaptainOnWatch || displaySlot) && timeLeft && (
                                                             <div className="mt-2 text-right">
-                                                                <div className="text-xs uppercase text-muted-foreground font-bold">Remaining</div>
+                                                                <div className="text-xs uppercase text-muted-foreground font-bold">
+                                                                    {isCaptainOnWatch ? 'Remaining' : 'Off Time Remaining'}
+                                                                </div>
                                                                 <div className="font-mono text-xl font-bold">{timeLeft}</div>
                                                             </div>
                                                         )}
                                                     </div>
 
                                                     {/* Check In Action */}
-                                                    {isCaptainOnWatch && (
+                                                    {isCaptainOnWatch && vessel?.checkInEnabled && (
                                                         <div className="pt-2">
                                                             {(() => {
                                                                 let showCheckInButton = !isCheckedIn;
@@ -495,15 +385,7 @@ export default function CaptainDashboard() {
                                                         <Users className="h-5 w-5 text-primary" />
                                                         On Watch Now
                                                     </CardTitle>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                                                        const current = vessel.checkInInterval || 15;
-                                                        const newInterval = prompt("Set Alert Interval (minutes):", current.toString());
-                                                        if (newInterval && !isNaN(Number(newInterval))) {
-                                                            updateVesselSettings(vessel.id, { checkInInterval: Number(newInterval) });
-                                                        }
-                                                    }}>
-                                                        <SettingsIcon className="h-4 w-4 text-muted-foreground" />
-                                                    </Button>
+
                                                 </CardHeader>
                                                 <CardContent>
                                                     {activeSlot ? (
@@ -556,12 +438,30 @@ export default function CaptainDashboard() {
                                                                     );
                                                                 })}
                                                             </div>
-                                                            <div className="text-sm text-muted-foreground">
-                                                                {activeSlot.crew.length} crew member{activeSlot.crew.length !== 1 ? 's' : ''} currently on duty.
-                                                            </div>
+
                                                         </div>
                                                     ) : (
                                                         <div className="text-muted-foreground">No active watch.</div>
+                                                    )}
+
+                                                    {/* Up Next Section */}
+                                                    {nextGlobalSlot && (
+                                                        <div className="mt-6 pt-6 border-t">
+                                                            <div className="text-xs uppercase text-muted-foreground font-bold mb-3 flex justify-between items-center">
+                                                                <span>Up Next</span>
+                                                                <span>{formatTime(nextGlobalSlot.start)}</span>
+                                                            </div>
+                                                            <div className="flex flex-col gap-2">
+                                                                {nextGlobalSlot.crew.map((c: any) => (
+                                                                    <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
+                                                                        <div className="h-6 w-6 rounded-full bg-secondary border flex items-center justify-center font-bold text-xs shadow-sm">
+                                                                            {c.userName[0]}
+                                                                        </div>
+                                                                        <span className="font-medium text-sm text-muted-foreground">{c.userName}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </CardContent>
                                             </Card>
@@ -587,9 +487,9 @@ export default function CaptainDashboard() {
                             onUpdateScheduleSettings={updateScheduleSettings}
                             onUpdateSlot={updateScheduleSlot}
                             onClearSchedule={() => {
-                                console.log('CaptainDashboard: calling deleteSchedule for vessel', vessel.id);
+
                                 deleteSchedule(vessel.id)
-                                    .then(() => console.log('CaptainDashboard: deleteSchedule completed'))
+
                                     .catch(e => console.error('CaptainDashboard: deleteSchedule failed', e));
                             }}
                         />
