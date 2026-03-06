@@ -38,7 +38,7 @@ export function CrewListPrintView({ vessel, crew, captainName }: CrewListPrintVi
                 <tbody className="text-sm">
                     {crew.map((member) => (
                         <tr key={member.id} className="border-b border-gray-200">
-                            <td className="py-3 pr-4">{member.name}</td>
+                            <td className="py-3 pr-4">{member.firstName} {member.lastName}</td>
                             <td className="py-3 pr-4 font-medium">{member.customRole || member.role}</td>
                             <td className="py-3 pr-4">{member.dateOfBirth || '-'}</td>
                             <td className="py-3 pr-4">{member.nationality || '-'}</td>

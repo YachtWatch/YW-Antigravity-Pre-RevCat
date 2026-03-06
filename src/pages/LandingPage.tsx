@@ -210,9 +210,9 @@ export default function LandingPage() {
                             <span className="font-semibold">YachtWatch</span>
                         </div>
                         <div className="flex gap-8 text-sm text-muted-foreground">
-                            <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-                            <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-                            <a href="#" className="hover:text-foreground transition-colors">Support</a>
+                            <a href="/privacy-policy" className="hover:text-foreground transition-colors">Privacy</a>
+                            <a href="/terms-of-service" className="hover:text-foreground transition-colors">Terms</a>
+                            <a href="mailto:support@yachtwatch.com" className="hover:text-foreground transition-colors">Support</a>
                         </div>
                         <div className="text-sm text-muted-foreground">
                             © {new Date().getFullYear()} YachtWatch. All rights reserved.

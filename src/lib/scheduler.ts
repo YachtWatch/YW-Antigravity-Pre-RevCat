@@ -10,7 +10,9 @@ export interface SchedulerOptions {
 
 export interface CrewMember {
     userId: string;
-    userName: string;
+    userFirstName: string;
+    userLastName: string;
+    isWatchLeader?: boolean;
     checkedInAt?: string;
 }
 
@@ -28,7 +30,20 @@ export function generateSchedule(crew: CrewMember[], options: SchedulerOptions):
     const duration = Number(options.duration);
     const slotsCount = 24 / duration;
     const slots: Slot[] = [];
-    let crewIndex = 0;
+
+    // Separate crew into leaders and keepers
+    const leaders = crew.filter(c => c.isWatchLeader);
+    const keepers = crew.filter(c => !c.isWatchLeader);
+
+    // If there ARE designated leaders, ensure mathematically we have enough to cover the watch slots.
+    // If the Captain hasn't designated ANY leaders, ignore this check and use standard cycle logic.
+    if (leaders.length > 0 && leaders.length < slotsCount && options.watchType !== 'dock') {
+        throw new Error(`Invalid configuration: You have ${slotsCount} watch slots in an active schedule but only ${leaders.length} Watch Leaders. You must designate more Watch Leaders or reduce the number of slots.`);
+    }
+
+    let leaderIndex = 0;
+    let keeperIndex = 0;
+    let standardIndex = 0;
 
     const nightStart = options.nightStart ?? 20;
     const nightEnd = options.nightEnd ?? 8;
@@ -73,9 +88,32 @@ export function generateSchedule(crew: CrewMember[], options: SchedulerOptions):
         if (!shouldGenerate) continue;
 
         const assigned = [];
-        for (let c = 0; c < Number(options.crewPerWatch); c++) {
-            assigned.push(crew[crewIndex % crew.length]);
-            crewIndex++;
+        const requiredCrew = Number(options.crewPerWatch);
+
+        if (leaders.length > 0) {
+            // Staggered Mode: Leaders + Keepers
+            // 1. Assign exactly one watch leader
+            assigned.push(leaders[leaderIndex % leaders.length]);
+            leaderIndex++;
+
+            // 2. Fill the rest of the required crew with keepers
+            let keepersNeeded = requiredCrew - 1;
+            for (let c = 0; c < keepersNeeded; c++) {
+                if (keepers.length > 0) {
+                    assigned.push(keepers[keeperIndex % keepers.length]);
+                    keeperIndex++;
+                } else {
+                    // Fallback if there are zero non-leaders (all crew are leaders)
+                    assigned.push(leaders[leaderIndex % leaders.length]);
+                    leaderIndex++;
+                }
+            }
+        } else {
+            // Standard Mode: No designated leaders, cycle normally
+            for (let c = 0; c < requiredCrew; c++) {
+                assigned.push(crew[standardIndex % crew.length]);
+                standardIndex++;
+            }
         }
 
         slots.push({

@@ -2,63 +2,73 @@ import { useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
 import { UserData, Vessel } from '../../contexts/DataContext';
-import { X, Check, Printer, RefreshCw } from 'lucide-react';
+import { X, Check, Printer, RefreshCw, Anchor, Compass, Coffee, Wrench, Users, Star, PenLine, Trash2 } from 'lucide-react';
 import { CrewListPrintView } from '../../components/CrewListPrintView'; // Import the print view
 
 
 interface CaptainCrewViewProps {
     vessel: Vessel;
+    schedule?: any;
     captainName: string;
-    approvedCrew: any[];
     pendingRequests: any[];
     users: UserData[];
     onEditRole: (userId: string) => void;
     onRemoveCrew: (userId: string) => void;
-    onRequestAction: (requestId: string, action: 'approved' | 'declined') => void;
+    onRequestAction: (requestId: string, action: 'approved' | 'rejected') => void;
     onRefresh: () => void;
 }
+const DEPARTMENT_CONFIG: Record<string, { label: string, icon: any, color: string }> = {
+    bridge: { label: 'Bridge', icon: Compass, color: 'text-blue-500 bg-blue-500/10' },
+    deck: { label: 'Deck', icon: Anchor, color: 'text-cyan-500 bg-cyan-500/10' },
+    interior: { label: 'Interior', icon: Coffee, color: 'text-purple-500 bg-purple-500/10' },
+    engineering: { label: 'Engineering', icon: Wrench, color: 'text-orange-500 bg-orange-500/10' },
+    galley: { label: 'Galley', icon: Wrench, color: 'text-red-500 bg-red-500/10' },
+    other: { label: 'Other', icon: Users, color: 'text-gray-500 bg-gray-500/10' }
+};
 
-export function CaptainCrewView({ vessel, captainName, approvedCrew, pendingRequests, users, onEditRole, onRemoveCrew, onRequestAction, onRefresh }: CaptainCrewViewProps) {
+const CREW_POSITIONS = {
+    bridge: ['Captain', 'Chief Officer', 'Second Officer', 'Third Officer', 'Mate'],
+    deck: ['Bosun', 'Lead Deckhand', 'Deckhand', 'Delivery Crew'],
+    interior: ['Chief Steward/ess', 'Second Steward/ess', 'Steward/ess', 'Laundry'],
+    galley: ['Head Chef', 'Sous Chef', 'Cook'],
+    engineering: ['Chief Engineer', 'Second Engineer', 'Third Engineer', 'ETO']
+};
+
+const getDepartment = (role: string) => {
+    if (!role) return 'other';
+    for (const [dept, roles] of Object.entries(CREW_POSITIONS)) {
+        if (roles.includes(role)) return dept;
+    }
+    return 'other';
+};
+
+export function CaptainCrewView({ vessel, schedule, captainName, pendingRequests, users, onEditRole, onRemoveCrew, onRequestAction, onRefresh }: CaptainCrewViewProps) {
     const [showPrintView, setShowPrintView] = useState(false);
-
-    // Map approved crew requests to full user objects for the print view
-    /* DEBUG LOGGING */
-    // console.log("CaptainCrewView: approvedCrew", approvedCrew);
-    // console.log("CaptainCrewView: users", users);
-
-    const crewForPrint = approvedCrew
-        .map(req => {
-            const user = users.find(u => u.id === req.userId);
-            if (!user) {
-                // Return a partial user object if profile is missing
-                return {
-                    id: req.userId,
-                    name: req.userName || 'Unknown Crew',
-                    email: '',
-                    role: 'crew',
-                    customRole: 'Deckhand', // Default
-                    vesselId: vessel.id,
-                    nationality: '-',
-                    passportNumber: '-',
-                    dateOfBirth: '-'
-                } as UserData;
-            }
-            return user;
-        });
-
-    // console.log("CaptainCrewView: crewForPrint", crewForPrint);
-
-    // Add Captain to the list
-    const captainUser = users.find(u => u.name === captainName) || {
-        id: 'captain',
-        name: captainName,
+    // Ensure captain is properly represented if missing from users array
+    const captainUser = users.find(u => u.id === vessel.captainId) || {
+        id: vessel.captainId || 'captain',
+        firstName: captainName ? captainName.split(' ')[0] : 'Unknown',
+        lastName: captainName ? captainName.split(' ').slice(1).join(' ') : 'Captain',
         email: '',
         role: 'captain',
         customRole: 'Captain'
     } as UserData;
 
-    // Prepend Captain
-    const finalCrewList = [captainUser, ...crewForPrint];
+    // Build the final crew list from `users`, ensuring the captain is included and first
+    const finalCrewList = [
+        captainUser,
+        ...users.filter(u => u.id !== vessel.captainId)
+    ];
+
+    // Calculate Watch Stats
+    const now = new Date();
+    const currentGlobalSlot = schedule?.slots.find((slot: any) => {
+        const start = new Date(slot.start);
+        const end = new Date(slot.end);
+        return now >= start && now < end;
+    });
+
+    const crewOnWatchIds = currentGlobalSlot?.crew.map((c: any) => c.userId) || [];
 
     const handlePrint = () => {
         window.print();
@@ -128,11 +138,11 @@ export function CaptainCrewView({ vessel, captainName, approvedCrew, pendingRequ
                         {pendingRequests.map(req => (
                             <div key={req.id} className="flex items-center justify-between p-4 border rounded-lg bg-card shadow-sm">
                                 <div>
-                                    <div className="font-bold text-sm">{req.userName}</div>
+                                    <div className="font-bold text-sm">{req.userFirstName} {req.userLastName}</div>
                                     <div className="text-xs text-muted-foreground">Request sent today</div>
                                 </div>
                                 <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10" onClick={() => onRequestAction(req.id, 'declined')}>
+                                    <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10" onClick={() => onRequestAction(req.id, 'rejected')}>
                                         <X className="h-4 w-4" />
                                     </Button>
                                     <Button size="sm" className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 text-white" onClick={() => onRequestAction(req.id, 'approved')}>
@@ -160,28 +170,57 @@ export function CaptainCrewView({ vessel, captainName, approvedCrew, pendingRequ
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {finalCrewList.map(c => {
-                            const isCaptain = c.role === 'captain';
+                            const role = c.customRole || c.role || (c.role === 'captain' ? 'Captain' : 'Crew');
+                            const dept = getDepartment(role);
+                            const config = DEPARTMENT_CONFIG[dept] || DEPARTMENT_CONFIG.other;
+                            const Icon = config.icon;
+                            const isOnWatch = crewOnWatchIds.includes(c.id);
+                            const isCaptain = role.toLowerCase() === 'captain' || c.role === 'captain';
+
                             return (
-                                <div key={c.id} className="flex items-center gap-3 p-4 border rounded-lg bg-card">
-                                    <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                                        {c.name ? c.name[0] : '?'}
+                                <div key={c.id} className="relative group overflow-hidden bg-card hover:bg-accent/5 transition-colors border rounded-xl p-3 flex items-center gap-4 shadow-sm">
+                                    {isOnWatch && (
+                                        <div className="absolute top-2 right-2 flex gap-1">
+                                            <span className="relative flex h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    <div className={`h-11 w-11 rounded-full ${config.color} flex items-center justify-center font-bold text-lg shrink-0 relative`}>
+                                        {c.firstName ? c.firstName[0] : '?'}
+                                        {isCaptain && (
+                                            <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-yellow-900 rounded-full p-0.5 border-2 border-card">
+                                                <Star className="h-3 w-3 fill-current" />
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex-1">
-                                        <div className="font-bold flex items-center justify-between">
-                                            {c.name}
+
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-bold text-base truncate pr-4 flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                {c.firstName} {c.lastName}
+                                                <div className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${isOnWatch ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+                                                    {isOnWatch ? 'On Watch' : 'Off Duty'}
+                                                </div>
+                                            </div>
                                             {!isCaptain && (
-                                                <div className="flex gap-2">
-                                                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => onEditRole(c.id)}>
-                                                        Edit Role
+                                                <div className="flex gap-1 shrink-0">
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => onEditRole(c.id)} title="Edit Role">
+                                                        <PenLine className="h-4 w-4" />
                                                     </Button>
-                                                    <Button variant="ghost" size="sm" className="h-6 text-xs text-destructive hover:bg-destructive/10" onClick={() => onRemoveCrew(c.id)}>
-                                                        Remove
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => onRemoveCrew(c.id)} title="Remove Crew Member">
+                                                        <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="text-xs text-muted-foreground">
-                                            Role: {c.customRole || (isCaptain ? "Captain" : "Deckhand")}
+                                        <div className="flex items-center justify-between mt-1">
+                                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                                <Icon className="h-3.5 w-3.5 opacity-70" />
+                                                <span className="truncate">{role}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

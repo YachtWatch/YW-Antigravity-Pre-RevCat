@@ -40,7 +40,8 @@ export default function CompleteProfilePage() {
             passportNumber,
             dateOfBirth,
             // If we have initialData from signup, use it to populate the profile
-            name: initialData?.name || user.name,
+            firstName: initialData?.firstName || user.firstName,
+            lastName: initialData?.lastName || user.lastName,
             role: initialData?.role || user.role,
             customRole: initialData?.customRole || user.customRole,
         };

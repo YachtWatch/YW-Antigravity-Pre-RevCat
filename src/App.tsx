@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
@@ -10,22 +10,25 @@ import { ToastProvider } from './components/ui/Toast';
 import { NotificationListener } from './components/NotificationListener';
 import { SubscriptionProvider } from './context/SubscriptionContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import LandingPage from './pages/LandingPage';
-// import ConnectionTestPage from './pages/ConnectionTestPage';
-import LoginPage from './pages/auth/LoginPage';
-import SignupPage from './pages/auth/SignupPage';
-import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
-import ResetPasswordPage from './pages/auth/ResetPasswordPage';
-import CaptainDashboard from './pages/captain/CaptainDashboard';
-import CrewDashboard from './pages/crew/CrewDashboard';
-import ProfilePage from './pages/ProfilePage';
-import SettingsPage from './pages/SettingsPage';
-import CompleteProfilePage from './pages/CompleteProfilePage';
-import DashboardIndex from './pages/DashboardIndex';
-import ScheduleGeneratorWizard from './pages/captain/ScheduleGeneratorWizard';
 import { ActiveWatchOverlay } from './components/ActiveWatchOverlay';
-import DiagnosticsPage from './pages/DiagnosticsPage';
-import SubscriptionPage from './pages/SubscriptionPage';
+import { OfflineBanner } from './components/OfflineBanner';
+
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const SignupPage = lazy(() => import('./pages/auth/SignupPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+const CaptainDashboard = lazy(() => import('./pages/captain/CaptainDashboard'));
+const CrewDashboard = lazy(() => import('./pages/crew/CrewDashboard'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const CompleteProfilePage = lazy(() => import('./pages/CompleteProfilePage'));
+const DashboardIndex = lazy(() => import('./pages/DashboardIndex'));
+const ScheduleGeneratorWizard = lazy(() => import('./pages/captain/ScheduleGeneratorWizard'));
+const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage'));
+const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
 
 function RootRedirect() {
     const { user, loading } = useAuth();
@@ -76,40 +79,47 @@ function App() {
                             <NotificationListener />
                             <div className="min-h-screen bg-background text-foreground font-sans antialiased">
                                 <BrowserRouter>
-                                    <Routes>
-                                        <Route path="/" element={<RootRedirect />} />
+                                    <OfflineBanner />
+                                    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+                                        <Routes>
+                                            <Route path="/" element={<RootRedirect />} />
 
-                                        <Route path="/auth">
-                                            <Route path="login" element={<LoginPage />} />
-                                            <Route path="signup" element={<SignupPage />} />
-                                            <Route path="forgot-password" element={<ForgotPasswordPage />} />
-                                            <Route path="reset-password" element={<ResetPasswordPage />} />
-                                            <Route path="confirm" element={<div className="p-8 text-center">Please check your email to confirm your account.</div>} />
-                                        </Route>
+                                            <Route path="/auth">
+                                                <Route path="login" element={<LoginPage />} />
+                                                <Route path="signup" element={<SignupPage />} />
+                                                <Route path="forgot-password" element={<ForgotPasswordPage />} />
+                                                <Route path="reset-password" element={<ResetPasswordPage />} />
+                                                <Route path="confirm" element={<div className="p-8 text-center">Please check your email to confirm your account.</div>} />
+                                            </Route>
 
-                                        {/* Generic Protected Routes (Any Authenticated User) */}
-                                        <Route element={<ProtectedRoute />}>
-                                            <Route path="/dashboard" element={<DashboardIndex />} />
-                                            <Route path="/complete-profile" element={<CompleteProfilePage />} />
-                                            <Route path="/profile" element={<ProfilePage />} />
-                                            <Route path="/settings" element={<SettingsPage />} />
-                                            <Route path="/diagnostics" element={<DiagnosticsPage />} />
-                                            <Route path="/subscription" element={<SubscriptionPage />} />
-                                        </Route>
+                                            {/* Public Legal Pages */}
+                                            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                                            <Route path="/terms-of-service" element={<TermsOfServicePage />} />
 
-                                        {/* Strict Role-Based Dashboards */}
-                                        <Route element={<ProtectedRoute allowedRoles={['captain']} />}>
-                                            <Route path="/dashboard/captain" element={<CaptainDashboard />} />
-                                            <Route path="/dashboard/captain/generate-schedule" element={<ScheduleGeneratorWizard />} />
-                                        </Route>
+                                            {/* Generic Protected Routes (Any Authenticated User) */}
+                                            <Route element={<ProtectedRoute />}>
+                                                <Route path="/dashboard" element={<DashboardIndex />} />
+                                                <Route path="/complete-profile" element={<CompleteProfilePage />} />
+                                                <Route path="/profile" element={<ProfilePage />} />
+                                                <Route path="/settings" element={<SettingsPage />} />
+                                                <Route path="/diagnostics" element={<DiagnosticsPage />} />
+                                                <Route path="/subscription" element={<SubscriptionPage />} />
+                                            </Route>
 
-                                        <Route element={<ProtectedRoute allowedRoles={['crew']} />}>
-                                            <Route path="/dashboard/crew" element={<CrewDashboard />} />
-                                        </Route>
+                                            {/* Strict Role-Based Dashboards */}
+                                            <Route element={<ProtectedRoute allowedRoles={['captain']} />}>
+                                                <Route path="/dashboard/captain" element={<CaptainDashboard />} />
+                                                <Route path="/dashboard/captain/generate-schedule" element={<ScheduleGeneratorWizard />} />
+                                            </Route>
 
-                                        {/* Fallback */}
-                                        <Route path="*" element={<Navigate to="/" replace />} />
-                                    </Routes>
+                                            <Route element={<ProtectedRoute allowedRoles={['crew']} />}>
+                                                <Route path="/dashboard/crew" element={<CrewDashboard />} />
+                                            </Route>
+
+                                            {/* Fallback */}
+                                            <Route path="*" element={<Navigate to="/" replace />} />
+                                        </Routes>
+                                    </Suspense>
                                     <ActiveWatchOverlay />
                                 </BrowserRouter>
                             </div>

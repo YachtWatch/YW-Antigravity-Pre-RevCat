@@ -1,8 +1,10 @@
-
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
 import { Users, Anchor, Compass, Coffee, Wrench, Activity, Star } from 'lucide-react'; // Added Star for Captain
+import { UserData, useData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { UserData } from '../../contexts/DataContext';
 
 interface CrewListViewProps {
     approvedCrew: UserData[];
@@ -36,8 +38,10 @@ const getDepartment = (role: string) => {
 };
 
 export function CrewListView({ approvedCrew, schedule, vesselName }: CrewListViewProps) {
-
-    const { user: currentUser } = useAuth();
+    const { removeCrew } = useData();
+    const { user, updateUser } = useAuth();
+    const navigate = useNavigate();
+    const [saving, setSaving] = useState(false);
 
     // Ensure we are working with unique users to avoid duplicates if any
     const uniqueCrew = Array.from(new Map(approvedCrew.map(item => [item.id, item])).values());
@@ -58,7 +62,35 @@ export function CrewListView({ approvedCrew, schedule, vesselName }: CrewListVie
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold">{vesselName ? `${vesselName} Crew` : 'Crew List'}</h2>
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold">{vesselName ? `${vesselName} Crew` : 'Crew List'}</h2>
+                {user?.role === 'crew' && user?.vesselId && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={async () => {
+                            if (confirm('Are you sure you want to leave this vessel?')) {
+                                try {
+                                    setSaving(true);
+                                    await removeCrew(user.vesselId!, user.id);
+                                    // Clear local auth context immediately
+                                    updateUser({ vesselId: undefined });
+                                    // Navigate to dashboard where they will see Join Vessel
+                                    navigate('/dashboard');
+                                } catch (error) {
+                                    console.error(error);
+                                } finally {
+                                    setSaving(false);
+                                }
+                            }
+                        }}
+                        disabled={saving}
+                    >
+                        Leave Vessel
+                    </Button>
+                )}
+            </div>
 
             {/* Insights Section */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -108,18 +140,18 @@ export function CrewListView({ approvedCrew, schedule, vesselName }: CrewListVie
                             const isCaptain = role.toLowerCase() === 'captain' || c.role === 'captain';
 
                             return (
-                                <div key={c.id} className="relative group overflow-hidden bg-card hover:bg-accent/5 transition-colors border rounded-xl p-4 flex items-start gap-4 shadow-sm">
+                                <div key={c.id} className="relative group overflow-hidden bg-card hover:bg-accent/5 transition-colors border rounded-xl p-3 flex items-center gap-4 shadow-sm">
                                     {isOnWatch && (
                                         <div className="absolute top-2 right-2 flex gap-1">
-                                            <span className="relative flex h-2.5 w-2.5">
+                                            <span className="relative flex h-2 w-2">
                                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                                             </span>
                                         </div>
                                     )}
 
-                                    <div className={`h-12 w-12 rounded-full ${config.color} flex items-center justify-center font-bold text-lg shrink-0 relative`}>
-                                        {c.name ? c.name[0] : '?'}
+                                    <div className={`h-11 w-11 rounded-full ${config.color} flex items-center justify-center font-bold text-lg shrink-0 relative`}>
+                                        {c.firstName ? c.firstName[0] : '?'}
                                         {isCaptain && (
                                             <div className="absolute -bottom-1 -right-1 bg-yellow-400 text-yellow-900 rounded-full p-0.5 border-2 border-card">
                                                 <Star className="h-3 w-3 fill-current" />
@@ -129,19 +161,14 @@ export function CrewListView({ approvedCrew, schedule, vesselName }: CrewListVie
 
                                     <div className="flex-1 min-w-0">
                                         <div className="font-bold text-base truncate pr-4 flex items-center gap-2">
-                                            {c.name}
-                                            {currentUser?.id === c.id && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">You</span>}
+                                            {c.firstName} {c.lastName}
+                                            <div className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${isOnWatch ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+                                                {isOnWatch ? 'On Watch' : 'Off Duty'}
+                                            </div>
                                         </div>
                                         <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
                                             <Icon className="h-3.5 w-3.5 opacity-70" />
                                             <span className="truncate">{role}</span>
-                                        </div>
-
-                                        {/* Status Line */}
-                                        <div className="mt-3 flex items-center gap-2 text-xs font-medium">
-                                            <div className={`px-2 py-0.5 rounded-full ${isOnWatch ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
-                                                {isOnWatch ? 'On Watch' : 'Off Duty'}
-                                            </div>
                                         </div>
                                     </div>
                                 </div>

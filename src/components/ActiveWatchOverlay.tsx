@@ -68,7 +68,7 @@ export function ActiveWatchOverlay() {
     };
 
     return (
-        <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-4 z-[110] w-80 shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
+        <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom,0px))] left-4 right-4 sm:left-auto sm:right-4 z-[110] sm:w-80 shadow-2xl animate-in slide-in-from-bottom-10 fade-in duration-500">
             <Card className={cn("border-2", getStatusStyles())}>
                 <CardHeader className="pb-2">
                     <div className="flex justify-between items-start">

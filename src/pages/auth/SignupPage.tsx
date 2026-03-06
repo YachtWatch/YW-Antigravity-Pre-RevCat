@@ -12,7 +12,8 @@ import { cn } from '../../lib/utils';
 export default function SignupPage() {
     // const { refreshUser } = useAuth(); // Unused
     const [role, setRole] = useState<UserRole>('captain');
-    const [name, setName] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [position, setPosition] = useState('');
@@ -35,15 +36,17 @@ export default function SignupPage() {
                 options: {
                     data: {
                         role: role,
-                        name: name,
+                        name: `${firstName} ${lastName}`.trim(),
+                        first_name: firstName,
+                        last_name: lastName,
                         custom_role: position
                     }
                 }
             });
 
-            // Timeout after 15 seconds to prevent indefinite hanging
+            // Timeout after 60 seconds to prevent indefinite hanging (extended for testing cold starts)
             const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Request timed out. Please check your internet connection.")), 15000)
+                setTimeout(() => reject(new Error("Request timed out. Please check your internet connection.")), 60000)
             );
 
             const { data: authData, error: authError } = await Promise.race([signUpPromise, timeoutPromise]) as any;
@@ -66,7 +69,8 @@ export default function SignupPage() {
             navigate('/complete-profile', {
                 state: {
                     initialData: {
-                        name,
+                        firstName,
+                        lastName,
                         role,
                         customRole: position,
                         email
@@ -102,7 +106,8 @@ export default function SignupPage() {
                         navigate('/complete-profile', {
                             state: {
                                 initialData: {
-                                    name,
+                                    firstName,
+                                    lastName,
                                     role,
                                     customRole: position,
                                     email
@@ -163,15 +168,27 @@ export default function SignupPage() {
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <label htmlFor="name" className="text-sm font-medium leading-none">Full Name</label>
-                        <Input
-                            id="name"
-                            placeholder="John Doe"
-                            required
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                        />
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label htmlFor="firstName" className="text-sm font-medium leading-none">First Name</label>
+                            <Input
+                                id="firstName"
+                                placeholder="John"
+                                required
+                                value={firstName}
+                                onChange={(e) => setFirstName(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label htmlFor="lastName" className="text-sm font-medium leading-none">Last Name</label>
+                            <Input
+                                id="lastName"
+                                placeholder="Doe"
+                                required
+                                value={lastName}
+                                onChange={(e) => setLastName(e.target.value)}
+                            />
+                        </div>
                     </div>
 
                     <div className="space-y-2">

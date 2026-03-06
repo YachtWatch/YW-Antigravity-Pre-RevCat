@@ -54,7 +54,7 @@ export default function LoginPage() {
             const { data, error: authError } = authResponse;
 
             if (authError) {
-                console.error("🔴 AuthService Error:", authError);
+                console.error("🔴 AuthService Error (auth.users table / auth.schema):", authError);
                 throw authError;
             }
 
@@ -71,7 +71,7 @@ export default function LoginPage() {
                 }
 
                 // Fallback: Fetch profile only if metadata is missing/invalid
-
+                console.log("Fetching profile from 'profiles' table for user:", data.user.id);
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('role')
@@ -79,6 +79,7 @@ export default function LoginPage() {
                     .single();
 
                 if (profileError) {
+                    console.error("🔴 Profile fetch Error (profiles table):", profileError);
                     console.warn("🟠 Profile fetch warning:", profileError);
                     // Only treat it as missing if we get the explicit "Row not found" code
                     if (profileError.code !== 'PGRST116') {
@@ -87,7 +88,7 @@ export default function LoginPage() {
                         // But we need strict role.
                         // Let's assume 'crew' if we can't tell, BUT show a warning?
                         // No, better to fail visible so they know something is wrong.
-                        throw new Error("Failed to fetch profile: " + profileError.message);
+                        throw new Error(`Failed to fetch profile (Table: profiles, Code: ${profileError.code}): ` + profileError.message);
                     }
                 }
 

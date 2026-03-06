@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 import { useData } from '../../contexts/DataContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -11,7 +12,7 @@ import { generateSchedule as generateScheduleLogic } from '../../lib/scheduler';
 import { CaptainScheduleView } from './CaptainScheduleView';
 import { CaptainCrewView } from './CaptainCrewView';
 import { getCurrentSlot } from '../../lib/time-utils';
-import { NoScheduleState } from '../../components/NoScheduleState';
+
 import CustomPaywall from '../../components/subscription/CustomPaywall';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { useWatchLogic } from '../../hooks/useWatchLogic';
@@ -24,7 +25,7 @@ const formatTime = (isoString: string) => {
 
 
 export default function CaptainDashboard() {
-    const { user, updateUser } = useAuth();
+    const { user, updateUser, loading: authLoading } = useAuth();
     const { createVessel, getVessel, getRequestsForVessel, updateRequestStatus, createSchedule, getSchedule, updateUserInStore, updateScheduleSlot, updateScheduleSettings, removeCrew, updateCrewRole, users, refreshData, deleteSchedule, loading, checkInToWatch } = useData();
     const { isSubscribed, loading: subLoading } = useSubscription();
     const [activeTab, setActiveTab] = useState<'dashboard' | 'schedule' | 'crew'>('dashboard');
@@ -102,25 +103,32 @@ export default function CaptainDashboard() {
         }
     };
 
-    const handleRequestAction = (requestId: string, action: 'approved' | 'declined') => {
+    const handleRequestAction = (requestId: string, action: 'approved' | 'rejected') => {
         updateRequestStatus(requestId, action);
     };
 
     const handleGenerateSchedule = (options: any) => {
         if (!vessel || approvedCrew.length === 0) return;
 
-        const slots = generateScheduleLogic(
-            approvedCrew.map(c => ({ userId: c.userId, userName: c.userName })),
-            options
-        );
+        try {
+            const slots = generateScheduleLogic(
+                approvedCrew.map(c => {
+                    const u = users.find(user => user.id === c.userId);
+                    return { userId: c.userId, userFirstName: c.userFirstName, userLastName: c.userLastName, isWatchLeader: u?.isWatchLeader };
+                }),
+                options
+            );
 
-        createSchedule({
-            vesselId: vessel.id,
-            name: options.watchType === 'dock' ? 'Dock Schedule' : (options.watchType === 'anchor' ? 'Anchor Watch' : 'Standard Rotation'),
-            watchType: options.watchType,
-            createdAt: new Date().toISOString(),
-            slots
-        });
+            createSchedule({
+                vesselId: vessel.id,
+                name: options.watchType === 'dock' ? 'Dock Schedule' : (options.watchType === 'anchor' ? 'Anchor Watch' : 'Standard Rotation'),
+                watchType: options.watchType,
+                createdAt: new Date().toISOString(),
+                slots
+            });
+        } catch (error: any) {
+            alert(error.message);
+        }
     };
 
     const handleRemoveCrew = (userId: string) => {
@@ -129,14 +137,18 @@ export default function CaptainDashboard() {
     };
 
     const handleEditRole = (userId: string) => {
+        if (!vessel) return;
         const role = prompt('Enter new role title (e.g. Bosun, Chef):');
-        if (role) updateCrewRole(userId, role);
+        if (role) updateCrewRole(vessel.id, userId, role);
     };
 
-    if (loading) {
+    // Wait for both DataContext and AuthContext to finish loading before deciding if vessel exists.
+    // Without authLoading check, a captain can see "Register Vessel" if DataContext finishes first
+    // before AuthContext has fully resolved user.vesselId.
+    if (loading || authLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <Loader2 className="animate-spin h-8 w-8 text-primary" />
             </div>
         );
     }
@@ -418,9 +430,9 @@ export default function CaptainDashboard() {
                                                                         <div key={c.userId} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50">
                                                                             <div className="flex items-center gap-3">
                                                                                 <div className="h-8 w-8 rounded-full bg-secondary border flex items-center justify-center font-bold text-sm shadow-sm">
-                                                                                    {c.userName[0]}
+                                                                                    {c.userFirstName ? c.userFirstName[0] : '?'}
                                                                                 </div>
-                                                                                <span className="font-medium text-sm">{c.userName}</span>
+                                                                                <span className="font-medium text-sm">{c.userFirstName} {c.userLastName}</span>
                                                                             </div>
 
                                                                             {/* Status Dot / Timer */}
@@ -455,9 +467,9 @@ export default function CaptainDashboard() {
                                                                 {nextGlobalSlot.crew.map((c: any) => (
                                                                     <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
                                                                         <div className="h-6 w-6 rounded-full bg-secondary border flex items-center justify-center font-bold text-xs shadow-sm">
-                                                                            {c.userName[0]}
+                                                                            {c.userFirstName ? c.userFirstName[0] : '?'}
                                                                         </div>
-                                                                        <span className="font-medium text-sm text-muted-foreground">{c.userName}</span>
+                                                                        <span className="font-medium text-sm text-muted-foreground">{c.userFirstName} {c.userLastName}</span>
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -468,12 +480,6 @@ export default function CaptainDashboard() {
                                         );
                                     })()}
                                 </div>
-
-                                {!schedule && (
-                                    <div className="py-8">
-                                        <NoScheduleState onCreateSchedule={() => setActiveTab('schedule')} />
-                                    </div>
-                                )}
                             </div>
                         </>
                     )}
@@ -498,8 +504,18 @@ export default function CaptainDashboard() {
                     {activeTab === 'crew' && (
                         <CaptainCrewView
                             vessel={vessel}
-                            captainName={user?.name || 'Captain'}
-                            approvedCrew={approvedCrew}
+                            schedule={schedule}
+                            captainName={(() => {
+                                const captainEntry = users.find(u => u.id === vessel.captainId);
+                                const name = captainEntry
+                                    ? `${captainEntry.firstName} ${captainEntry.lastName}`.trim()
+                                    : '';
+                                // Fallback: if the captain IS the logged-in user, use AuthContext data
+                                if (!name && user?.id === vessel.captainId) {
+                                    return `${user.firstName} ${user.lastName}`.trim() || 'Captain';
+                                }
+                                return name || 'Unknown Captain';
+                            })()}
                             pendingRequests={pendingRequests}
                             users={users}
                             onEditRole={handleEditRole}

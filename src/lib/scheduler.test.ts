@@ -3,10 +3,10 @@ import { describe, it, expect } from 'vitest';
 import { generateSchedule, CrewMember } from './scheduler';
 
 const mockCrew: CrewMember[] = [
-    { userId: '1', userName: 'Alice' },
-    { userId: '2', userName: 'Bob' },
-    { userId: '3', userName: 'Charlie' },
-    { userId: '4', userName: 'Dave' },
+    { userId: '1', userFirstName: 'Alice', userLastName: 'Smith' },
+    { userId: '2', userFirstName: 'Bob', userLastName: 'Jones' },
+    { userId: '3', userFirstName: 'Charlie', userLastName: 'Brown' },
+    { userId: '4', userFirstName: 'Dave', userLastName: 'Williams' },
 ];
 
 describe('Scheduler', () => {
@@ -77,12 +77,12 @@ describe('Scheduler', () => {
         });
 
         // Slot 0: Alice, Bob
-        expect(slots[0].crew[0].userName).toBe('Alice');
-        expect(slots[0].crew[1].userName).toBe('Bob');
+        expect(slots[0].crew[0].userFirstName).toBe('Alice');
+        expect(slots[0].crew[1].userFirstName).toBe('Bob');
         // Slot 1: Charlie, Dave
-        expect(slots[1].crew[0].userName).toBe('Charlie');
-        expect(slots[1].crew[1].userName).toBe('Dave');
+        expect(slots[1].crew[0].userFirstName).toBe('Charlie');
+        expect(slots[1].crew[1].userFirstName).toBe('Dave');
         // Slot 2: Alice, Bob (Wrap around)
-        expect(slots[2].crew[0].userName).toBe('Alice');
+        expect(slots[2].crew[0].userFirstName).toBe('Alice');
     });
 });

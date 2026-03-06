@@ -38,7 +38,7 @@ export function ProfileDropdown() {
                     {/* Dropdown */}
                     <div className="absolute right-0 top-full mt-2 w-56 bg-card border rounded-lg shadow-lg z-[102] overflow-hidden">
                         <div className="p-3 border-b bg-muted/30">
-                            <div className="font-medium truncate">{user?.name}</div>
+                            <div className="font-medium truncate">{user?.firstName} {user?.lastName}</div>
                             <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
                             <div className="text-xs text-primary font-medium capitalize mt-1">{user?.role}</div>
                         </div>

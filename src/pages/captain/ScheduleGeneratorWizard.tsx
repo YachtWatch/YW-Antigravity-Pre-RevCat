@@ -9,9 +9,10 @@ import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { WatchSchedule } from '../../contexts/DataContext';
 import { supabase } from '../../lib/supabase';
+import { Switch } from '../../components/ui/switch';
 
 export default function ScheduleGeneratorWizard() {
-    const { users, createSchedule, getRequestsForVessel } = useData();
+    const { users, createSchedule, toggleWatchLeader } = useData();
     const { user: currentUser } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -93,29 +94,19 @@ export default function ScheduleGeneratorWizard() {
     // -- Step 3: Preview State --
     const [previewSchedule, setPreviewSchedule] = useState<WatchSchedule | null>(null);
 
-    // Filter crew logic (Same as before)
+    // Filter crew logic updated to only look at `users` state directly
+    // This perfectly matches what the CaptainCrewView displays.
     const availableCrew = useMemo(() => {
         if (!currentUser?.vesselId) return [];
-        const allCrewMap = new Map<string, UserData>();
-        allCrewMap.set(currentUser.id, currentUser as unknown as UserData);
-        const approvedRequests = getRequestsForVessel(currentUser.vesselId)
-            .filter(r => r.status === 'approved');
-        approvedRequests.forEach(req => {
-            if (!allCrewMap.has(req.userId)) {
-                allCrewMap.set(req.userId, {
-                    id: req.userId,
-                    name: req.userName,
-                    role: 'crew',
-                    vesselId: currentUser.vesselId
-                } as UserData);
-            }
-        });
-        const vesselUsers = users.filter(u => u.vesselId === currentUser.vesselId);
-        vesselUsers.forEach(u => {
-            allCrewMap.set(u.id, u);
-        });
-        return Array.from(allCrewMap.values());
-    }, [users, getRequestsForVessel, currentUser]);
+        const vesselUsers = users.filter(u => u.id === currentUser.id || u.vesselId === currentUser.vesselId);
+
+        // Ensure current user (Captain) is always present even if they weren't matched in the filter
+        if (!vesselUsers.some(u => u.id === currentUser.id)) {
+            vesselUsers.unshift(currentUser as unknown as UserData);
+        }
+
+        return vesselUsers;
+    }, [users, currentUser]);
 
     const toggleCrewSelection = (userId: string) => {
         setSelectedCrewIds(prev => {
@@ -162,7 +153,8 @@ export default function ScheduleGeneratorWizard() {
                 if (crewIndex < 0) crewIndex += totalCrew;
                 activeCrewInChunk.push({
                     userId: orderedCrew[crewIndex].id,
-                    userName: orderedCrew[crewIndex].name
+                    userFirstName: orderedCrew[crewIndex].firstName,
+                    userLastName: orderedCrew[crewIndex].lastName
                 });
             }
 
@@ -369,19 +361,32 @@ export default function ScheduleGeneratorWizard() {
                                     >
                                         <div className="flex items-center gap-4">
                                             <div className={cn("h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold border", isSelected ? "bg-background text-primary border-primary/20" : "bg-secondary text-muted-foreground border-transparent")}>
-                                                {u.name.charAt(0)}
+                                                {u.firstName ? u.firstName.charAt(0) : '?'}
                                             </div>
                                             <div>
-                                                <div className="font-semibold text-sm">{u.name}</div>
+                                                <div className="font-semibold text-sm">{u.firstName} {u.lastName}</div>
                                                 <div className="text-xs text-muted-foreground capitalize">{u.customRole || u.role}</div>
                                             </div>
                                         </div>
 
-                                        {isSelected && (
-                                            <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shadow-sm">
-                                                {rank}
-                                            </div>
-                                        )}
+                                        <div className="flex items-center gap-4">
+                                            {crewPerWatch >= 2 && (
+                                                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                                    <span className="text-xs font-medium text-muted-foreground cursor-default">Watch Leader</span>
+                                                    <Switch
+                                                        checked={u.isWatchLeader || false}
+                                                        onCheckedChange={(checked) => currentUser?.vesselId && toggleWatchLeader(currentUser.vesselId, u.id, checked)}
+                                                        className="data-[state=checked]:bg-primary"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {isSelected && (
+                                                <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shadow-sm">
+                                                    {rank}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}

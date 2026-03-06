@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useRef, memo } from 'react';
 import { Button } from '../../components/ui/button';
 import { Switch } from '../../components/ui/switch';
 import { Card } from '../../components/ui/card';
@@ -11,7 +11,7 @@ import { cn } from '../../lib/utils';
 import { NoScheduleState } from '../../components/NoScheduleState';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { useRef } from 'react';
+
 
 interface CaptainScheduleViewProps {
     schedule: WatchSchedule | null | undefined;
@@ -23,7 +23,7 @@ interface CaptainScheduleViewProps {
     onClearSchedule: () => void;
 }
 
-export function CaptainScheduleView({
+export const CaptainScheduleView = memo(function CaptainScheduleView({
     schedule,
     // approvedCrew, // Unused while modal is disabled
     // vessel,
@@ -294,4 +294,4 @@ export function CaptainScheduleView({
             {/* Edit Slot Modal - Disabled for now */}
         </div >
     );
-}
+});

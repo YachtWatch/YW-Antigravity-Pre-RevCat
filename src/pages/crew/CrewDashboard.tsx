@@ -29,7 +29,7 @@ const formatTime = (isoString: string) => {
 
 export default function CrewDashboard() {
     const { user } = useAuth();
-    const { requestJoin, getCrewVessel, getPendingRequest, getVessel, getSchedule, checkInToWatch, users, requests, refreshData } = useData();
+    const { requestJoin, getCrewVessel, getPendingRequest, getVessel, getSchedule, checkInToWatch, users, refreshData, loading, initialLoadComplete } = useData();
     const [joinCode, setJoinCode] = useState('');
     // const [selectedPosition, setSelectedPosition] = useState(''); // Removed per user request
     const [error, setError] = useState('');
@@ -43,19 +43,8 @@ export default function CrewDashboard() {
     const schedule = activeVessel ? getSchedule(activeVessel.id) : undefined;
 
     // Robustly get all approved crew:
-    // 1. Get IDs of everyone with an APPROVED request for this vessel
-    // 2. Add the Captain's ID
-    const approvedCrewIds = activeVessel
-        ? requests
-            .filter(r => r.vesselId === activeVessel.id && r.status === 'approved')
-            .map(r => r.userId)
-        : [];
-
-    if (activeVessel && !approvedCrewIds.includes(activeVessel.captainId)) {
-        approvedCrewIds.push(activeVessel.captainId);
-    }
-
-    const approvedCrew = users.filter(u => approvedCrewIds.includes(u.id));
+    // DataContext already fetches exactly the Captain + Approved Crew for this specific vessel via RLS-safe queries.
+    const approvedCrew = users;
 
     // -- OPTIMIZED SLOT LOGIC --
     const {
@@ -79,7 +68,7 @@ export default function CrewDashboard() {
         // Removed position validation per user request
 
         // Validate request
-        const result = await requestJoin(user.id, user.name, joinCode.trim().toUpperCase());
+        const result = await requestJoin(user.id, user.firstName || '', user.lastName || '', joinCode.trim().toUpperCase());
         if (result.success) {
             // No need to update position here as it comes from signup
             setSuccess(result.message);
@@ -94,6 +83,16 @@ export default function CrewDashboard() {
         checkInToWatch(activeVessel.id, displaySlot.id, user.id);
     };
 
+    // Show spinner on first load OR during a background refresh if we haven't resolved a vessel yet.
+    // Without this guard, a background data refresh can briefly show "Join a Vessel" before the
+    // requests/vessels data repopulates, creating a false redirect.
+    if (loading && (!initialLoadComplete || !activeVessel)) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <Loader2 className="h-10 w-10 text-primary animate-spin" />
+            </div>
+        );
+    }
 
     if (!activeVessel) {
         return (
@@ -188,7 +187,7 @@ export default function CrewDashboard() {
                 {activeTab === 'dashboard' && (
                     <div className="flex flex-col gap-6">
                         <div className="flex justify-between items-center">
-                            <h1 className="text-3xl font-bold capitalize">{user?.name ? `${user.name}'s Dashboard` : 'Dashboard'}</h1>
+                            <h1 className="text-3xl font-bold capitalize">{user?.firstName ? `${user.firstName}'s Dashboard` : 'Dashboard'}</h1>
                         </div>
 
                         {/* 3-Card Vessel Stats (Moved to Top) */}
@@ -326,9 +325,9 @@ export default function CrewDashboard() {
                                                 {currentGlobalSlot.crew.map((c: any) => (
                                                     <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
                                                         <div className="h-8 w-8 rounded-full bg-secondary border flex items-center justify-center font-bold text-sm shadow-sm">
-                                                            {c.userName[0]}
+                                                            {c.userFirstName ? c.userFirstName[0] : '?'}
                                                         </div>
-                                                        <span className="font-medium text-sm">{c.userName}</span>
+                                                        <span className="font-medium text-sm">{c.userFirstName} {c.userLastName}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -348,9 +347,9 @@ export default function CrewDashboard() {
                                                 {nextGlobalSlot.crew.map((c: any) => (
                                                     <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
                                                         <div className="h-6 w-6 rounded-full bg-secondary border flex items-center justify-center font-bold text-xs shadow-sm">
-                                                            {c.userName[0]}
+                                                            {c.userFirstName ? c.userFirstName[0] : '?'}
                                                         </div>
-                                                        <span className="font-medium text-sm text-muted-foreground">{c.userName}</span>
+                                                        <span className="font-medium text-sm text-muted-foreground">{c.userFirstName} {c.userLastName}</span>
                                                     </div>
                                                 ))}
                                             </div>

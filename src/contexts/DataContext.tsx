@@ -17,9 +17,10 @@ export interface Vessel {
 export interface JoinRequest {
     id: string;
     userId: string;
-    userName: string;
+    userFirstName: string;
+    userLastName: string;
     vesselId: string;
-    status: 'pending' | 'approved' | 'declined';
+    status: 'pending' | 'approved' | 'rejected';
     createdAt: string;
 }
 
@@ -36,7 +37,7 @@ export interface WatchSchedule {
         id: number;
         start: string;
         end: string;
-        crew: { userId: string; userName: string; checkedInAt?: string }[];
+        crew: { userId: string; userFirstName: string; userLastName: string; checkedInAt?: string }[];
     }[];
 }
 
@@ -44,7 +45,8 @@ export interface UserData {
     id: string;
     email: string;
     password?: string; // In a real app, this would be hashed
-    name: string;
+    firstName: string;
+    lastName: string;
     role: 'captain' | 'crew';
     customRole?: string; // e.g. "Bosun", "Chief Stew"
     vesselId?: string | null;
@@ -54,6 +56,7 @@ export interface UserData {
     dateOfBirth?: string;
     reminder1?: number; // Minutes before watch
     reminder2?: number; // Minutes before watch
+    isWatchLeader?: boolean;
 }
 
 interface DataContextType {
@@ -63,9 +66,9 @@ interface DataContextType {
     createVessel: (vessel: Omit<Vessel, 'id' | 'joinCode'>) => Promise<Vessel | null>;
     getVessel: (id: string) => Vessel | undefined;
     getVesselByJoinCode: (code: string) => Vessel | undefined;
-    requestJoin: (userId: string, userName: string, code: string) => Promise<{ success: boolean; message: string }>;
+    requestJoin: (userId: string, userFirstName: string, userLastName: string, code: string) => Promise<{ success: boolean; message: string }>;
     getRequestsForVessel: (vesselId: string) => JoinRequest[];
-    updateRequestStatus: (requestId: string, status: 'approved' | 'declined') => Promise<void>;
+    updateRequestStatus: (requestId: string, status: 'approved' | 'rejected') => Promise<void>;
     getCrewVessel: (userId: string) => Vessel | undefined;
     getPendingRequest: (userId: string) => JoinRequest | undefined;
     createSchedule: (schedule: Omit<WatchSchedule, 'id'>) => Promise<void>;
@@ -75,8 +78,10 @@ interface DataContextType {
     users: UserData[];
     updateUserInStore: (userId: string, updates: Partial<UserData>) => Promise<void>;
     loading: boolean;
+    initialLoadComplete: boolean;
     removeCrew: (vesselId: string, userId: string) => Promise<void>;
-    updateCrewRole: (userId: string, newRole: string) => void;
+    updateCrewRole: (vesselId: string, userId: string, newRole: string) => void;
+    toggleWatchLeader: (vesselId: string, userId: string, isLeader: boolean) => Promise<void>;
     updateVesselSettings: (vesselId: string, updates: Partial<Vessel>) => Promise<void>;
     checkInToWatch: (vesselId: string, slotId: number, userId: string) => Promise<void>;
     confirmWatchAlert: (vesselId: string, slotId: number, userId: string) => Promise<void>;
@@ -90,13 +95,11 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 interface SupabaseProfile {
     id: string;
     email: string;
-    name: string;
+    first_name?: string;
+    last_name?: string;
     role: 'captain' | 'crew';
     custom_role?: string;
-    vessel_id?: string | null;
     nationality?: string;
-    passport_number?: string;
-    date_of_birth?: string;
     reminder_1?: number;
     reminder_2?: number;
 }
@@ -116,9 +119,10 @@ interface SupabaseVessel {
 interface SupabaseJoinRequest {
     id: string;
     user_id: string;
-    user_name: string;
+    user_first_name?: string;
+    user_last_name?: string;
     vessel_id: string;
-    status: 'pending' | 'approved' | 'declined';
+    status: 'pending' | 'approved' | 'rejected';
     created_at: string;
 }
 
@@ -132,7 +136,7 @@ interface SupabaseSchedule {
         id: number;
         start: string;
         end: string;
-        crew: { userId: string; userName: string; checkedInAt?: string }[];
+        crew: { userId: string; userFirstName: string; userLastName: string; checkedInAt?: string }[];
         condition?: 'always' | 'weekend-only';
     }[];
 }
@@ -148,13 +152,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         id: p.id,
         email: p.email,
         password: '',
-        name: p.name,
+        firstName: p.first_name || '',
+        lastName: p.last_name || '',
         role: p.role,
         customRole: p.custom_role,
-        vesselId: p.vessel_id,
+        vesselId: undefined, // Populated via vessel_members mapping later
         nationality: p.nationality,
-        passportNumber: p.passport_number,
-        dateOfBirth: p.date_of_birth,
+        passportNumber: undefined, // Fetched securely if Captain/Self
+        dateOfBirth: undefined,    // Fetched securely if Captain/Self
         reminder1: p.reminder_1 || 0,
         reminder2: p.reminder_2 || 0
     });
@@ -174,7 +179,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const mapRequest = (r: SupabaseJoinRequest): JoinRequest => ({
         id: r.id,
         userId: r.user_id,
-        userName: r.user_name,
+        userFirstName: r.user_first_name || '',
+        userLastName: r.user_last_name || '',
         vesselId: r.vessel_id,
         status: r.status,
         createdAt: r.created_at
@@ -196,60 +202,229 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const knownRequestIds = useRef<Set<string>>(new Set());
     const knownScheduleIds = useRef<Set<string>>(new Set());
 
+    const loadFromCache = () => {
+        try {
+            const cached = localStorage.getItem('yachtwatch_offline_data');
+            if (cached) {
+                const data = JSON.parse(cached);
+                if (data.users) setUsers(data.users);
+                if (data.vessels) setVessels(data.vessels);
+                if (data.requests) setRequests(data.requests);
+                if (data.schedules) setSchedules(data.schedules);
+                console.log("Loaded data from offline cache.");
+            }
+        } catch (e) {
+            console.error("Failed to parse local cache", e);
+        }
+    };
+
     const refreshData = async () => {
-
-        const { data: pData } = await supabase.from('profiles').select('*');
-        if (pData) setUsers((pData as SupabaseProfile[]).map(mapProfile));
-
-        const { data: vData } = await supabase.from('vessels').select('*');
-        if (vData) setVessels((vData as SupabaseVessel[]).map(mapVessel));
-
-        const { data: rData } = await supabase.from('join_requests').select('*');
-        if (rData) {
-            const newRequests = (rData as SupabaseJoinRequest[]).map(mapRequest);
-            setRequests(newRequests);
-
-            // Notification Logic for Join Requests
-            if (initialLoadComplete) {
-                newRequests.forEach(req => {
-                    if (!knownRequestIds.current.has(req.id)) {
-                        // New Request Found!
-                        handleNewRequestNotification(req);
-                        knownRequestIds.current.add(req.id);
-                    }
-                });
-
-                // Track status changes for existing requests (e.g. Approved/Declined) needs more complex diffing
-                // For now, we rely on the Realtime event for status updates, or we can add a 'knownStatus' map.
-                // Let's stick to new requests for polling to keep it simple, as status updates are less critical to miss by a few seconds
-                // unless we implement a full state diff.
-            } else {
-                // Initial Load - just populate
-                newRequests.forEach(req => knownRequestIds.current.add(req.id));
-            }
+        if (!navigator.onLine) {
+            console.log("Offline mode: Skipping fetch, loading from cache.");
+            loadFromCache();
+            if (!initialLoadComplete) setInitialLoadComplete(true);
+            return;
         }
 
-        // ORDER BY created_at DESC to ensure we always get the latest schedule first
-        const { data: sData } = await supabase.from('schedules').select('*').order('created_at', { ascending: false });
-        if (sData) {
+        try {
+            let usersWithVessels: UserData[] = [];
+            const { data: authUser } = await supabase.auth.getUser();
 
-            const newSchedules = (sData as SupabaseSchedule[]).map(mapSchedule);
-            setSchedules(newSchedules);
+            if (authUser?.user) {
+                const uid = authUser.user.id;
 
-            // Notification Logic for Schedules
-            if (initialLoadComplete) {
-                newSchedules.forEach(sch => {
-                    if (!knownScheduleIds.current.has(sch.id)) {
-                        handleNewScheduleNotification(sch);
-                        knownScheduleIds.current.add(sch.id);
+                // ── STEP 1: Determine active vessel and role reliably ──
+                // For captains: look up the vessel they OWN (not vessel_members, which can have stale test entries)
+                // For crew: look up their approved join_request (source of truth for membership)
+
+                let activeVesselId: string | null = null;
+                let isCaptain = false;
+
+                // Check if user is a captain of any vessel
+                const { data: ownedVessel } = await supabase
+                    .from('vessels')
+                    .select('id')
+                    .eq('captain_id', uid)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (ownedVessel) {
+                    activeVesselId = ownedVessel.id;
+                    isCaptain = true;
+                } else {
+                    // Not a captain — find active vessel via approved join_request
+                    const { data: approvedReq } = await supabase
+                        .from('join_requests')
+                        .select('vessel_id')
+                        .eq('user_id', uid)
+                        .eq('status', 'approved')
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (approvedReq) {
+                        activeVesselId = approvedReq.vessel_id;
                     }
-                });
-            } else {
-                newSchedules.forEach(sch => knownScheduleIds.current.add(sch.id));
-            }
-        }
+                }
 
-        if (!initialLoadComplete) setInitialLoadComplete(true);
+                if (activeVesselId) {
+                    if (isCaptain) {
+                        // 🚢 CAPTAIN: Fetch the full manifest (includes secure passports/DOBs) via RPC
+                        const { data: manifestData, error: manifestError } = await supabase.rpc('get_crew_manifest', { v_vessel_id: activeVesselId });
+
+                        if (manifestData) {
+                            usersWithVessels = (manifestData as any[]).map(row => ({
+                                id: row.user_id,
+                                email: '',
+                                password: '',
+                                firstName: row.first_name || '',
+                                lastName: row.last_name || '',
+                                role: row.role || 'crew',
+                                customRole: row.custom_role,
+                                vesselId: activeVesselId,
+                                nationality: row.nationality,
+                                passportNumber: row.passport_number,
+                                dateOfBirth: row.date_of_birth,
+                                reminder1: 0,
+                                reminder2: 0
+                            })).sort((a, b) => a.firstName.localeCompare(b.firstName));
+                        } else {
+                            console.error("Failed to load Captain Manifest via RPC:", manifestError);
+                        }
+
+                    } else {
+                        // ⚓️ CREW: Fetch public profile data ONLY! No passports.
+                        const { data: memberData, error: memberError } = await supabase
+                            .from('vessel_members')
+                            .select('user_id, role, vessel_id')
+                            .eq('vessel_id', activeVesselId);
+
+                        if (memberError) {
+                            console.error("❌ [RLS DEBUG] Error fetching vessel_members:", memberError);
+                        }
+
+                        if (memberData && memberData.length > 0) {
+                            const userIds = memberData.map(m => m.user_id);
+                            const { data: profilesData, error: profilesError } = await supabase
+                                .from('profiles')
+                                .select('id, first_name, last_name, email, custom_role, nationality, reminder_1, reminder_2')
+                                .in('id', userIds);
+
+                            if (profilesError) {
+                                console.error("❌ [RLS DEBUG] Error fetching profiles:", profilesError);
+                            }
+
+                            if (profilesData) {
+                                usersWithVessels = profilesData.map(profile => {
+                                    const mem = memberData.find(m => m.user_id === profile.id);
+                                    return {
+                                        id: profile.id,
+                                        email: profile.email,
+                                        password: '',
+                                        firstName: profile.first_name || '',
+                                        lastName: profile.last_name || '',
+                                        role: mem?.role || 'crew',
+                                        customRole: profile.custom_role,
+                                        vesselId: activeVesselId,
+                                        nationality: profile.nationality,
+                                        passportNumber: undefined,
+                                        dateOfBirth: undefined,
+                                        reminder1: profile.reminder_1 || 0,
+                                        reminder2: profile.reminder_2 || 0
+                                    };
+                                }).sort((a, b) => a.firstName.localeCompare(b.firstName));
+                            }
+                        }
+
+                        // Always stitch in the current user's OWN secure data
+                        const { data: mySecureData } = await supabase.from('crew_secure_data').select('passport_number, date_of_birth').eq('user_id', uid).maybeSingle();
+                        if (mySecureData) {
+                            const meIndex = usersWithVessels.findIndex(u => u.id === uid);
+                            if (meIndex >= 0) {
+                                usersWithVessels[meIndex].passportNumber = mySecureData.passport_number;
+                                usersWithVessels[meIndex].dateOfBirth = mySecureData.date_of_birth;
+                            }
+                        }
+                    }
+
+                } else {
+                    // If they have no vessel, fetch their own profile
+                    const { data: me } = await supabase.from('profiles').select('id, first_name, last_name, email, role, custom_role, nationality, reminder_1, reminder_2, created_at, vessel_id').eq('id', uid).single();
+                    const { data: mySecureData } = await supabase.from('crew_secure_data').select('passport_number, date_of_birth').eq('user_id', uid).maybeSingle();
+
+                    if (me) {
+                        const baseProfile = mapProfile(me as SupabaseProfile);
+                        if (mySecureData) {
+                            baseProfile.passportNumber = mySecureData.passport_number;
+                            baseProfile.dateOfBirth = mySecureData.date_of_birth;
+                        }
+                        usersWithVessels = [baseProfile];
+                    }
+                }
+            }
+
+            setUsers(usersWithVessels);
+
+            const { data: vData } = await supabase.from('vessels').select('id, captain_id, name, length, type, capacity, join_code, check_in_enabled, check_in_interval, created_at');
+            const newVessels = vData ? (vData as SupabaseVessel[]).map(mapVessel) : [];
+            if (vData) setVessels(newVessels);
+
+            const { data: rData } = await supabase.from('join_requests').select('id, vessel_id, user_id, user_first_name, user_last_name, status, created_at');
+            let newRequests: JoinRequest[] = [];
+            if (rData) {
+                newRequests = (rData as SupabaseJoinRequest[]).map(mapRequest);
+                setRequests(newRequests);
+
+                // Notification Logic for Join Requests
+                if (initialLoadComplete) {
+                    newRequests.forEach(req => {
+                        if (!knownRequestIds.current.has(req.id)) {
+                            // New Request Found!
+                            handleNewRequestNotification(req);
+                            knownRequestIds.current.add(req.id);
+                        }
+                    });
+                } else {
+                    // Initial Load - just populate
+                    newRequests.forEach(req => knownRequestIds.current.add(req.id));
+                }
+            }
+
+            // ORDER BY created_at DESC to ensure we always get the latest schedule first
+            const { data: sData } = await supabase.from('schedules').select('id, vessel_id, name, watch_type, slots, created_at').order('created_at', { ascending: false });
+            let newSchedules: WatchSchedule[] = [];
+            if (sData) {
+                newSchedules = (sData as SupabaseSchedule[]).map(mapSchedule);
+                setSchedules(newSchedules);
+
+                // Notification Logic for Schedules
+                if (initialLoadComplete) {
+                    newSchedules.forEach(sch => {
+                        if (!knownScheduleIds.current.has(sch.id)) {
+                            handleNewScheduleNotification(sch);
+                            knownScheduleIds.current.add(sch.id);
+                        }
+                    });
+                } else {
+                    newSchedules.forEach(sch => knownScheduleIds.current.add(sch.id));
+                }
+            }
+
+            // Cache data for offline usage
+            localStorage.setItem('yachtwatch_offline_data', JSON.stringify({
+                users: usersWithVessels,
+                vessels: newVessels,
+                requests: newRequests,
+                schedules: newSchedules
+            }));
+
+            if (!initialLoadComplete) setInitialLoadComplete(true);
+        } catch (error) {
+            console.error("Network or fetch error during refresh, loading from cache", error);
+            loadFromCache();
+            if (!initialLoadComplete) setInitialLoadComplete(true);
+        }
     };
 
     const handleNewRequestNotification = async (req: JoinRequest) => {
@@ -258,7 +433,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // Check if I am the captain
         const { data: vessel } = await supabase.from('vessels').select('captain_id, name').eq('id', req.vesselId).single();
         if (vessel && vessel.captain_id === user.id) {
-            NotificationService.sendLocalAlert('New Join Request', `${req.userName} requests to join ${vessel.name}`);
+            NotificationService.sendLocalAlert('New Join Request', `${req.userFirstName} ${req.userLastName} requests to join ${vessel.name}`);
         }
         // Also check if *I* am the one who was approved (status change) - but this function detects NEW requests (pending).
         // Approved requests are updates, not inserts. 
@@ -268,24 +443,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
         // Check if I am a crew member of this vessel
-        const { data: profile } = await supabase.from('profiles').select('vessel_id').eq('id', user.id).single();
-        if (profile && profile.vessel_id === sch.vesselId) {
+        const { data: profileVessel } = await supabase.from('vessel_members').select('vessel_id').eq('user_id', user.id).order('joined_at', { ascending: false }).limit(1).maybeSingle();
+        if (profileVessel && profileVessel.vessel_id === sch.vesselId) {
             NotificationService.sendLocalAlert('New Watch Schedule', `A new schedule "${sch.name}" has been published.`);
         }
     };
 
     useEffect(() => {
         const loadData = async () => {
-            await refreshData();
-            setLoading(false);
+            try {
+                await refreshData();
+            } catch (err) {
+                console.error("Unhandled error in refreshData:", err);
+            } finally {
+                setLoading(false);
+            }
         };
 
         loadData();
-
-        // Polling Fallback (every 5 seconds)
-        const pollInterval = setInterval(() => {
-            refreshData();
-        }, 5000);
 
         // Realtime Subscription
         const channel = supabase.channel('vital-updates')
@@ -302,8 +477,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 if (updatedRequest.user_id === user.id) {
                     if (updatedRequest.status === 'approved') {
                         NotificationService.sendLocalAlert('Welcome Aboard!', `Your request to join has been approved.`);
-                    } else if (updatedRequest.status === 'declined') {
-                        NotificationService.sendLocalAlert('Request Declined', `Your request to join was declined.`);
+                    } else if (updatedRequest.status === 'rejected') {
+                        NotificationService.sendLocalAlert('Request Rejected', `Your request to join was rejected.`);
                     }
                 }
             })
@@ -319,9 +494,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
                 const updatedSchedule = payload.new;
                 // Check if I am a crew member of this vessel (or the captain)
-                const { data: profile } = await supabase.from('profiles').select('vessel_id').eq('id', user.id).single();
+                const { data: profileVessel } = await supabase.from('vessel_members').select('vessel_id').eq('user_id', user.id).order('joined_at', { ascending: false }).limit(1).maybeSingle();
 
-                if (profile && profile.vessel_id === updatedSchedule.vessel_id) {
+                if (profileVessel && profileVessel.vessel_id === updatedSchedule.vessel_id) {
                     NotificationService.sendLocalAlert('Schedule Updated', `The schedule "${updatedSchedule.name}" has been updated.`);
                 }
             })
@@ -334,7 +509,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         };
 
         return () => {
-            clearInterval(pollInterval);
             supabase.removeChannel(channel);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
@@ -369,23 +543,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const updateUserInStore = async (userId: string, updates: Partial<UserData>) => {
+        // 1. Update Public Profile Data
         const dbUpdates: Partial<SupabaseProfile> = {};
-        if (updates.name) dbUpdates.name = updates.name;
-        if (updates.role) dbUpdates.role = updates.role;
-        if (updates.customRole) dbUpdates.custom_role = updates.customRole;
-        if (updates.vesselId !== undefined) dbUpdates.vessel_id = updates.vesselId;
-        if (updates.nationality) dbUpdates.nationality = updates.nationality;
-        if (updates.passportNumber) dbUpdates.passport_number = updates.passportNumber;
-        if (updates.dateOfBirth) dbUpdates.date_of_birth = updates.dateOfBirth;
+        if (updates.firstName !== undefined) dbUpdates.first_name = updates.firstName;
+        if (updates.lastName !== undefined) dbUpdates.last_name = updates.lastName;
+        if (updates.role !== undefined) dbUpdates.role = updates.role as 'crew' | 'captain';
+        if (updates.customRole !== undefined) dbUpdates.custom_role = updates.customRole;
+        if (updates.nationality !== undefined) dbUpdates.nationality = updates.nationality;
         if (updates.reminder1 !== undefined) dbUpdates.reminder_1 = updates.reminder1;
         if (updates.reminder2 !== undefined) dbUpdates.reminder_2 = updates.reminder2;
 
-        const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', userId);
+        if (Object.keys(dbUpdates).length > 0) {
+            const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', userId);
+            if (error) console.error("❌ PUBLIC PROFILE UPDATE FAILED:", error);
+        }
 
-        if (error) {
-            console.error("❌ STRICT UPDATE FAILED:", error);
-            alert(`Failed to save profile changes: ${error.message}`);
-            throw error;
+        // 2. Update Secure Vault Data
+        const secureUpdates: any = {};
+        let needsSecureUpdate = false;
+
+        if (updates.passportNumber !== undefined) {
+            secureUpdates.passport_number = updates.passportNumber;
+            needsSecureUpdate = true;
+        }
+        if (updates.dateOfBirth !== undefined) {
+            secureUpdates.date_of_birth = updates.dateOfBirth || null;
+            needsSecureUpdate = true;
+        }
+
+        if (needsSecureUpdate) {
+            // Use UPSERT because the row might not exist in crew_secure_data yet
+            secureUpdates.user_id = userId;
+            const { error: vaultError } = await supabase.from('crew_secure_data').upsert(secureUpdates);
+            if (vaultError) console.error("❌ VAULT UPDATE FAILED:", vaultError);
         }
 
         await refreshData();
@@ -421,7 +611,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // 2. Strict Verify: Read it back immediately
         const { data: verifyData, error: verifyError } = await supabase
             .from('vessels')
-            .select('*')
+            .select('id, captain_id, name, length, type, capacity, join_code, check_in_enabled, check_in_interval, created_at')
             .eq('id', tempId)
             .single();
 
@@ -433,8 +623,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
 
 
-        // 3. Link to Captain Profile
-        await updateUserInStore(data.captainId, { vesselId: tempId });
+        // 3. Link to Captain Profile - this now requires adding to vessel_members
+        // We'll trust the captain is automatically added on backend creation or we add them here.
+        // Assuming we need to add them here manually for safety:
+        await supabase.from('vessel_members').upsert(
+            { vessel_id: tempId, user_id: data.captainId, role: 'captain' },
+            { onConflict: 'user_id, vessel_id' }
+        );
 
 
         await refreshData();
@@ -444,25 +639,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const getVessel = (id: string) => vessels.find(v => v.id === id);
     const getVesselByJoinCode = (code: string) => vessels.find(v => v.joinCode === code.trim().toUpperCase());
 
-    const requestJoin = async (userId: string, userName: string, code: string) => {
-        let vessel = getVesselByJoinCode(code);
+    const requestJoin = async (userId: string, userFirstName: string, userLastName: string, code: string) => {
+        const cleanCode = code.trim().toUpperCase();
+        let vessel = getVesselByJoinCode(cleanCode);
 
+        // Always query the server as a fallback because local state `vessels` 
+        // might not contain vessels the user isn't a member of.
         if (!vessel) {
-            const { data } = await supabase.from('vessels').select('*').eq('join_code', code.trim().toUpperCase()).single();
-            if (data) vessel = mapVessel(data);
+            console.log(`[JoinReq] Code ${cleanCode} not in local cache, querying server...`);
+            const { data, error } = await supabase.from('vessels').select('id, captain_id, name, length, type, capacity, join_code, check_in_enabled, check_in_interval, created_at').eq('join_code', cleanCode).maybeSingle();
+
+            if (error) {
+                console.error("❌ Join Request Vessel Lookup Failed:", error);
+                return { success: false, message: "Error looking up vessel" };
+            }
+
+            if (data) {
+                vessel = mapVessel(data);
+            }
         }
 
         if (!vessel) return { success: false, message: "Invalid Join Code" };
 
         const { error } = await supabase.from('join_requests').insert({
             user_id: userId,
-            user_name: userName,
+            user_name: `${userFirstName} ${userLastName}`.trim(),
+            user_first_name: userFirstName,
+            user_last_name: userLastName,
             vessel_id: vessel.id,
             status: 'pending'
         });
 
         if (error) {
-            console.error("❌ Join Request Failed:", error);
+            console.error("❌ Join Request Insert Failed:", error);
+            // Check for unique constraint violation (user already requested)
+            if (error.code === '23505') {
+                return { success: false, message: "You have already requested to join this vessel." };
+            }
             return { success: false, message: error.message };
         }
 
@@ -472,14 +685,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const getRequestsForVessel = (vesselId: string) => requests.filter(r => r.vesselId === vesselId);
 
-    const updateRequestStatus = async (requestId: string, status: 'approved' | 'declined') => {
+    const updateRequestStatus = async (requestId: string, status: 'approved' | 'rejected') => {
         const { error } = await supabase.from('join_requests').update({ status }).eq('id', requestId);
         if (error) throw error;
 
         if (status === 'approved') {
             const request = requests.find(r => r.id === requestId);
             if (request) {
-                await supabase.from('profiles').update({ vessel_id: request.vesselId }).eq('id', request.userId);
+                const { error: insertError } = await supabase
+                    .from('vessel_members')
+                    .upsert({
+                        vessel_id: request.vesselId,
+                        user_id: request.userId,
+                        role: 'crew'
+                    }, { onConflict: 'user_id, vessel_id' });
+
+                if (insertError) console.error("Failed to add vessel member:", insertError);
             }
         }
         await refreshData();
@@ -544,7 +765,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
                     const existingEntry = slot.crew.find((c: any) => c.userId === id);
                     if (existingEntry) return existingEntry;
                     const req = requests.find(r => r.userId === id && r.vesselId === vesselId);
-                    return { userId: id, userName: req ? req.userName : 'Unknown' };
+                    return { userId: id, userFirstName: req ? req.userFirstName : 'Unknown', userLastName: req ? req.userLastName : '' };
                 });
                 return { ...slot, crew: updatedCrew };
             }
@@ -579,8 +800,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
             );
 
             if (isUserInSchedule) {
-                alert("This user is involved in a live watch schedule, and therefore cannot be removed from the vessel at this time. Please remove them from the schedule slots and try again.");
-                return;
+                const msg = "cannot leave vessel while included in an active watch schedule, please talk to master";
+                alert(msg);
+                throw new Error(msg);
             }
         }
 
@@ -592,18 +814,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, vesselId: undefined } : u));
 
         try {
-            // Use Secure RPC (v2)
-            const { error } = await supabase.rpc('remove_crew_member_v2', {
-                target_user_id: userId,
-                target_vessel_id: vesselId
-            });
+            // Remove the link directly from vessel_members
+            const { error: membersError } = await supabase
+                .from('vessel_members')
+                .delete()
+                .eq('user_id', userId)
+                .eq('vessel_id', vesselId);
 
-            if (error) {
-                console.error("Failed to remove crew member (RPC):", error);
-                throw error;
-            } else {
-
+            if (membersError) {
+                console.error("Failed to remove crew member from vessel_members:", membersError);
+                throw membersError;
             }
+
+            // Also remove the join request, since that is now used as the source of truth for active vessel
+            const { error: requestError } = await supabase
+                .from('join_requests')
+                .delete()
+                .eq('user_id', userId)
+                .eq('vessel_id', vesselId);
+
+            if (requestError) {
+                console.error("Failed to remove crew member from join_requests:", requestError);
+                // We don't throw here to avoid failing if they didn't have a join request for some reason
+            }
+
         } catch (e) {
             console.error("Removal failed:", e);
             let errorMessage = "Unknown error";
@@ -623,8 +857,45 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await refreshData();
     };
 
-    const updateCrewRole = (userId: string, newRole: string) => {
-        updateUserInStore(userId, { customRole: newRole });
+    const updateCrewRole = async (vesselId: string, userId: string, newRole: string) => {
+        // Optimistic UI Update
+        setUsers(prev => prev.map(u =>
+            (u.id === userId && u.vesselId === vesselId) ? { ...u, role: newRole as 'crew' | 'captain', customRole: newRole } : u
+        ));
+
+        const { error } = await supabase
+            .from('vessel_members')
+            .update({ role: newRole })
+            .eq('vessel_id', vesselId)
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error("Failed to update crew role:", error);
+            await refreshData(); // Revert on failure
+        }
+    };
+
+    const toggleWatchLeader = async (vesselId: string, userId: string, isLeader: boolean) => {
+        const newUsers = users.map(c => {
+            if (c.id === userId && c.vesselId === vesselId) {
+                return { ...c, isWatchLeader: isLeader };
+            }
+            return c;
+        });
+
+        // Optimistic update
+        setUsers(newUsers);
+
+        const { error } = await supabase
+            .from('vessel_members')
+            .update({ is_watch_leader: isLeader })
+            .eq('vessel_id', vesselId)
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error("Failed to update watch leader status:", error);
+            await refreshData();
+        }
     };
 
     const checkInToWatch = async (vesselId: string, slotId: number, userId: string) => {
@@ -691,8 +962,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             vessels, requests, schedules, createVessel, getVessel, getVesselByJoinCode,
             requestJoin, getRequestsForVessel, updateRequestStatus, getCrewVessel, getPendingRequest,
             createSchedule, updateScheduleSlot, updateScheduleSettings, getSchedule,
-            users, updateUserInStore, loading,
-            removeCrew, updateCrewRole, updateVesselSettings, checkInToWatch, confirmWatchAlert, deleteSchedule, refreshData
+            users, updateUserInStore, loading, initialLoadComplete,
+            removeCrew, updateCrewRole, toggleWatchLeader, updateVesselSettings, checkInToWatch, confirmWatchAlert, deleteSchedule, refreshData
         }}>
             {children}
         </DataContext.Provider>

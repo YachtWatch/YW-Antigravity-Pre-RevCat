@@ -12,7 +12,8 @@ export default function ProfilePage() {
     const { updateUserInStore } = useData();
     const navigate = useNavigate();
 
-    const [name, setName] = useState(user?.name || '');
+    const [firstName, setFirstName] = useState(user?.firstName || '');
+    const [lastName, setLastName] = useState(user?.lastName || '');
     const [email, setEmail] = useState(user?.email || '');
     const [customRole, setCustomRole] = useState(user?.customRole || '');
     const [nationality, setNationality] = useState(user?.nationality || '');
@@ -31,7 +32,8 @@ export default function ProfilePage() {
 
 
         const updates = {
-            name,
+            firstName,
+            lastName,
             customRole,
             nationality,
             passportNumber,
@@ -77,22 +79,34 @@ export default function ProfilePage() {
                             <div className="h-16 w-16 rounded-full bg-primary/20 flex items-center justify-center">
                                 <User className="h-8 w-8 text-primary" />
                             </div>
-                            <div>
-                                <CardTitle>{user?.name}</CardTitle>
-                                <CardDescription className="capitalize">{user?.role}</CardDescription>
+                            <div className="flex-1">
+                                <CardTitle>{user?.firstName} {user?.lastName}</CardTitle>
+                                <CardDescription className="capitalize">
+                                    {user?.role}
+                                </CardDescription>
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent>
                         {isEditing ? (
                             <form onSubmit={handleSave} className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Full Name</label>
-                                    <Input
-                                        value={name}
-                                        onChange={e => setName(e.target.value)}
-                                        placeholder="Your name"
-                                    />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">First Name</label>
+                                        <Input
+                                            value={firstName}
+                                            onChange={e => setFirstName(e.target.value)}
+                                            placeholder="First Name"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Last Name</label>
+                                        <Input
+                                            value={lastName}
+                                            onChange={e => setLastName(e.target.value)}
+                                            placeholder="Last Name"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">
@@ -160,7 +174,7 @@ export default function ProfilePage() {
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div className="space-y-1">
                                         <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Full Name</label>
-                                        <div className="text-base font-medium">{user?.name || 'Not set'}</div>
+                                        <div className="text-base font-medium">{user?.firstName} {user?.lastName}</div>
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</label>

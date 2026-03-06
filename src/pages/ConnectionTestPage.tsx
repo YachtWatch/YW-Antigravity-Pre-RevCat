@@ -14,8 +14,8 @@ export default function ConnectionTestPage() {
 
     useEffect(() => {
         setEnvInfo({
-            url: import.meta.env.VITE_SUPABASE_URL,
-            hasKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+            url: import.meta.env.SUPABASE_URL,
+            hasKey: !!import.meta.env.SUPABASE_ANON_KEY,
             mode: import.meta.env.MODE
         });
     }, []);
@@ -39,7 +39,7 @@ export default function ConnectionTestPage() {
         }
 
         // 2. Test Supabase Health/Reachability
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseUrl = import.meta.env.SUPABASE_URL;
         try {
             addLog(`Pinging Supabase URL: ${supabaseUrl}...`);
             // const start = performance.now();
@@ -47,7 +47,7 @@ export default function ConnectionTestPage() {
             // Supabase projects usually respond to /rest/v1/ with 401 or similar if active
             const res = await fetch(`${supabaseUrl}/rest/v1/`, {
                 method: 'HEAD',
-                headers: { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY }
+                headers: { 'apikey': import.meta.env.SUPABASE_ANON_KEY }
             });
             addLog(`Supabase Ping: Status ${res.status}`);
             setResults((p: any) => ({ ...p, supabasePing: { status: res.status !== 503 ? 'ok' : 'warning', msg: `Status ${res.status}` } }));

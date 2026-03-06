@@ -18,10 +18,10 @@ export function ScheduleMatrixView({ schedule, className, currentUserId, showOnl
     const crewColumns = useMemo(() => {
         const uniqueCrew = new Map<string, string>(); // Id -> Name
         schedule.slots.forEach(slot => {
-            slot.crew.forEach(c => uniqueCrew.set(c.userId, c.userName));
+            slot.crew.forEach(c => uniqueCrew.set(c.userId, c.userFirstName));
         });
 
-        let allColumns = Array.from(uniqueCrew.entries()).map(([id, name]) => ({ id, name }));
+        let allColumns = Array.from(uniqueCrew.entries()).map(([id, firstName]) => ({ id, firstName }));
 
         if (showOnlyUserId) {
             allColumns = allColumns.filter(c => c.id === showOnlyUserId);
@@ -132,7 +132,7 @@ export function ScheduleMatrixView({ schedule, className, currentUserId, showOnl
                                         </div>
                                         {crewColumns.map(c => (
                                             <div key={c.id} className="p-2 text-xs font-semibold text-center border-r last:border-r-0 truncate flex items-center justify-center flex-col">
-                                                {c.name}
+                                                {c.firstName}
                                                 {c.id === currentUserId && <span className="text-[9px] text-primary leading-none mt-0.5">(You)</span>}
                                             </div>
                                         ))}

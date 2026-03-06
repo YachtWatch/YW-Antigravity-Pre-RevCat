@@ -10,8 +10,8 @@
         "preview": "vite preview"
     },
     "dependencies": {
-        "@capacitor/android": "^8.0.1",
-        "@capacitor/ios": "^8.0.1",
+        "@capacitor/android": "^8.1.0",
+        "@capacitor/ios": "^8.1.0",
         "@capacitor/local-notifications": "^8.0.0",
         "@capacitor/splash-screen": "^8.0.0",
         "@capacitor/status-bar": "^8.0.0",
@@ -31,8 +31,8 @@
     },
     "devDependencies": {
         "@capacitor/assets": "^3.0.5",
-        "@capacitor/cli": "^8.0.1",
-        "@capacitor/core": "^8.0.1",
+        "@capacitor/cli": "^8.1.0",
+        "@capacitor/core": "^8.1.0",
         "@playwright/test": "^1.58.2",
         "@types/html2canvas": "^0.5.35",
         "@types/react": "^18.2.48",

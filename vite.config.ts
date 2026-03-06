@@ -4,4 +4,16 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [react()],
+    envPrefix: ['VITE_', 'SUPABASE_', 'REVENUECAT_', 'APP_URL'],
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    vendor: ['react', 'react-dom', 'react-router-dom'],
+                    supabase: ['@supabase/supabase-js'],
+                    lucide: ['lucide-react']
+                }
+            }
+        }
+    }
 })

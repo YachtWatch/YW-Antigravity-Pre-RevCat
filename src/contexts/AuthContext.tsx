@@ -2,10 +2,10 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { supabase } from '../lib/supabase';
 
 export type UserRole = 'captain' | 'crew';
-
 export interface User {
     id: string;
-    name: string;
+    firstName: string;
+    lastName: string;
     email: string;
     role: UserRole;
     vesselId?: string;
@@ -40,16 +40,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         // Use onAuthStateChange as the single source of truth to avoid race conditions
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
 
             if (session?.user) {
-                // Determine if this is a new user or just a refresh
-                if (!user || user.id !== session.user.id) {
+                // Always re-fetch on sign-in or token refresh to prevent stale vesselId state.
+                // Skipping on other events (e.g. INITIAL_SESSION handled separately) is safe.
+                const shouldFetch = !user || user.id !== session.user.id || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED';
+                if (shouldFetch) {
                     setLoading(true);
                     await fetchProfile(session.user.id, session.user.email!, session.user.user_metadata);
                 } else {
-                    // We already have the user, just update loading if needed
                     setLoading(false);
                 }
             } else {
@@ -66,8 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             if (showLoading) setLoading(true);
             // Check if profile exists
+            console.log(`[AuthDebug] Fetching profile from 'profiles' table for user: ${userId}`);
             const { data, error } = await withTimeout(
-                supabase.from('profiles').select('*').eq('id', userId).single() as any,
+                supabase.from('profiles').select('id, first_name, last_name, role, custom_role, nationality, reminder_1, reminder_2, created_at, vessel_id').eq('id', userId).single() as any,
                 8000,
                 'Profile fetch timed out'
             );
@@ -76,10 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (error) {
                 if (error.code === 'PGRST116') {
-                    console.warn(`[AuthDebug] Profile not found (PGRST116). Creating new...`);
+                    console.warn(`[AuthDebug] Profile not found in 'profiles' (PGRST116). Creating new...`);
                     // ... creation logic ...
                 } else {
-                    console.error(`❌ [AuthDebug] Profile Fetch Error:`, error);
+                    console.error(`❌ [AuthDebug] Profile Fetch Error against 'profiles' table:`, error);
                     // alert(`DEBUG: Profile Fetch Error: ${error.message} (Code: ${error.code})`);
                 }
             }
@@ -87,16 +88,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // STRICT CHECK: Only auto-create if we explicitly got "Row not found" (PGRST116).
             // Any other error (network, timeout, 500) should NOT trigger auto-create.
             if (error && error.code === 'PGRST116') {
-                console.warn(`Profile not found for ${userId}. Attempting create...`);
+                console.warn(`Profile not found for ${userId}. Attempting create in 'profiles' table...`);
 
+                const firstName = (metadata?.full_name || metadata?.name)?.split(' ')[0] || email.split('@')[0] || 'New';
+                const lastName = (metadata?.full_name || metadata?.name)?.split(' ').slice(1).join(' ') || 'User';
                 const newProfile = {
                     id: userId,
                     email: email,
-                    name: (metadata?.full_name || metadata?.name) || email.split('@')[0] || 'New User',
+                    name: `${firstName} ${lastName}`.trim(), // Satisfies the NOT NULL constraint on profiles.name
+                    first_name: firstName,
+                    last_name: lastName,
                     role: (metadata?.role === 'captain' || metadata?.role === 'crew') ? metadata.role : 'crew' as UserRole,
                 };
 
+
                 // Upsert with timeout
+                console.log(`[AuthDebug] Upserting profile to 'profiles' table for user: ${userId}`);
                 const { error: insertError } = await withTimeout(
                     supabase.from('profiles').upsert(newProfile) as any,
                     8000,
@@ -104,12 +111,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 );
 
                 if (insertError) {
-                    console.error("Failed to auto-create profile:", insertError);
-                    setUser({ id: userId, name: 'Pending Setup', email: email, role: 'crew' });
+                    console.error("❌ [AuthDebug] Failed to auto-create profile in 'profiles' table:", insertError);
+                    setUser({ id: userId, firstName: 'Pending', lastName: 'Setup', email: email, role: 'crew' });
                 } else {
                     setUser({
                         id: userId,
-                        name: newProfile.name,
+                        firstName: newProfile.first_name,
+                        lastName: newProfile.last_name,
                         email: newProfile.email,
                         role: newProfile.role,
                         vesselId: undefined,
@@ -122,12 +130,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } else if (error) {
                 // If we have an error that ISN'T "Not Found", it's a real problem (timeout, offline, etc).
                 // DO NOT THROW. Instead, set a fallback user state so the user can at least log in.
-                console.error("Critical error fetching profile (using fallback):", error);
+                console.error("❌ [AuthDebug] Critical error fetching profile from 'profiles' table (using fallback):", error);
 
                 // Fallback user
                 const fallbackUser: User = {
                     id: userId,
-                    name: (metadata?.full_name || metadata?.name) || email.split('@')[0] || 'User',
+                    firstName: (metadata?.full_name || metadata?.name)?.split(' ')[0] || email.split('@')[0] || 'New',
+                    lastName: (metadata?.full_name || metadata?.name)?.split(' ').slice(1).join(' ') || 'User',
                     email: email,
                     role: (metadata?.role === 'captain' || metadata?.role === 'crew') ? metadata.role : 'crew' as UserRole,
                 };
@@ -136,18 +145,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     // SAFETY: If we already have this user and they have a vesselId, don't downgrade them
                     // just because of a temporary fetch error (timeout/network).
                     if (currentUser && currentUser.id === userId && currentUser.vesselId) {
-                        console.warn("⚠️ Keeping existing user state despite fetch error to prevent redirect.");
+                        console.warn("⚠️ Keeping existing user state despite fetch error against 'profiles' table to prevent redirect.");
                         return currentUser;
                     }
                     return fallbackUser;
                 });
 
             } else if (data) {
-                // Profile found
-                let finalRole = data.role;
+                // Determine raw role (default to crew if profile is missing it)
+                let rawProfileRole = data.role || 'crew';
 
-                // SELF-HEALING: If role is 'crew' (default safety), check if they actually own a vessel.
-                // This fixes the bug where captains were downgraded to crew during network timeouts.
+                // Fetch current vessel and role from vessel_members
+                const { data: vesselMember } = await supabase
+                    .from('vessel_members')
+                    .select('vessel_id, role')
+                    .eq('user_id', userId)
+                    .order('joined_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                // 1. Resolve Final Role
+                // If they have a vessel_members entry with a role, it ALWAYS wins over the global profile role.
+                let finalRole = vesselMember?.role || rawProfileRole;
+
+                // Keep the self-healing captain logic if they are completely unlinked but have the metadata
                 if (finalRole === 'crew') {
                     if (finalRole === 'crew') {
                         // Check metadata first (STRONGEST SIGNAL)
@@ -158,12 +179,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             // Persist the fix
                             await supabase.from('profiles').update({ role: 'captain' }).eq('id', userId);
                         } else {
-                            // Check vessel ownership
+                            // Check vessel ownership — use limit(1) to handle captains who own multiple vessels
+                            // (e.g. from duplicate creation). .single() throws a 406 on >1 rows, causing
+                            // the self-healing logic to fail and the role to stay as 'crew'.
                             const { data: ownedVessel } = await supabase
                                 .from('vessels')
                                 .select('id')
                                 .eq('captain_id', userId)
-                                .single();
+                                .order('created_at', { ascending: false })
+                                .limit(1)
+                                .maybeSingle();
 
                             if (ownedVessel) {
 
@@ -175,24 +200,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     }
                 }
 
-                // ROBUST OWNERSHIP: If captain, vessel source of truth is the vessels table, NOT the profile.
-                let finalVesselId = data.vessel_id;
+                let finalVesselId = vesselMember?.vessel_id || null;
+
+                // 2. Resolve Vessel Link and Self-Heal Captain Owner Links
 
                 if (finalRole === 'captain') {
+                    // Use limit(1) + order to pick the most recent vessel — maybeSingle() alone
+                    // returns null if multiple rows match, which would clear the vesselId.
                     const { data: ownedVessel } = await supabase
                         .from('vessels')
                         .select('id')
                         .eq('captain_id', userId)
-                        .maybeSingle(); // Use maybeSingle to avoid 406 errors on 0 rows
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
 
                     if (ownedVessel) {
 
                         finalVesselId = ownedVessel.id;
 
                         // Fix the profile link if it was wrong
-                        if (data.vessel_id !== ownedVessel.id) {
+                        if (finalVesselId !== ownedVessel.id) {
                             console.warn("⚠️ Fixing Profile Link mismatch for captain.");
-                            supabase.from('profiles').update({ vessel_id: ownedVessel.id }).eq('id', userId).then();
+                            supabase.from('vessel_members').insert({ vessel_id: ownedVessel.id, user_id: userId }).then();
                         }
                     } else {
                         // User is captain but owns no vessel.
@@ -207,16 +237,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     }
                 }
 
+                // 3. Fetch Secure Data for this specific user
+                const { data: secureData } = await supabase
+                    .from('crew_secure_data')
+                    .select('passport_number, date_of_birth')
+                    .eq('user_id', userId)
+                    .maybeSingle();
+
                 setUser({
                     id: data.id,
-                    name: data.name,
+                    firstName: data.first_name || '',
+                    lastName: data.last_name || '',
                     email: data.email || email,
                     role: finalRole as UserRole,
                     vesselId: finalVesselId, // Use resolved ID
                     customRole: data.custom_role,
                     nationality: data.nationality,
-                    passportNumber: data.passport_number,
-                    dateOfBirth: data.date_of_birth,
+                    passportNumber: secureData?.passport_number,
+                    dateOfBirth: secureData?.date_of_birth,
                     reminder1: data.reminder_1 || 0,
                     reminder2: data.reminder_2 || 0
                 });
@@ -226,7 +264,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Fallback for unexpected errors
             const fallbackUser: User = {
                 id: userId,
-                name: (metadata?.full_name || metadata?.name) || email.split('@')[0] || 'User',
+                firstName: (metadata?.full_name || metadata?.name)?.split(' ')[0] || email.split('@')[0] || 'New',
+                lastName: (metadata?.full_name || metadata?.name)?.split(' ').slice(1).join(' ') || 'User',
                 email: email,
                 role: (metadata?.role === 'captain' || metadata?.role === 'crew') ? metadata.role : 'crew' as UserRole,
             };
