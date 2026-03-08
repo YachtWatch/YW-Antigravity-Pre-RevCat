@@ -21,7 +21,7 @@ function ContactForm() {
         e.preventDefault();
         const subject = encodeURIComponent(`YachtWatch Contact from ${form.name}`);
         const body = encodeURIComponent(`Name: ${form.name}\nEmail: ${form.email}\n\nMessage:\n${form.message}`);
-        window.location.href = `mailto:support@yachtwatch.co?subject=${subject}&body=${body}`;
+        window.location.href = `mailto:yachtwatch@protonmail.com?subject=${subject}&body=${body}`;
         setSubmitted(true);
     };
 
@@ -273,7 +273,7 @@ export default function LandingPage() {
                         <div className="flex gap-8 text-sm text-muted-foreground">
                             <a href="/privacy-policy" className="hover:text-foreground transition-colors">Privacy</a>
                             <a href="/terms-of-service" className="hover:text-foreground transition-colors">Terms</a>
-                            <a href="mailto:support@yachtwatch.com" className="hover:text-foreground transition-colors">Support</a>
+                            <a href="mailto:yachtwatch@protonmail.com" className="hover:text-foreground transition-colors">Support</a>
                         </div>
                         <div className="text-sm text-muted-foreground">
                             © {new Date().getFullYear()} YachtWatch. All rights reserved.
