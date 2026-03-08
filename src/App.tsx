@@ -10,7 +10,6 @@ import { ToastProvider } from './components/ui/Toast';
 import { NotificationListener } from './components/NotificationListener';
 import { SubscriptionProvider } from './context/SubscriptionContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import { ActiveWatchOverlay } from './components/ActiveWatchOverlay';
 import { OfflineBanner } from './components/OfflineBanner';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -120,7 +119,6 @@ function App() {
                                             <Route path="*" element={<Navigate to="/" replace />} />
                                         </Routes>
                                     </Suspense>
-                                    <ActiveWatchOverlay />
                                 </BrowserRouter>
                             </div>
                         </SubscriptionProvider>

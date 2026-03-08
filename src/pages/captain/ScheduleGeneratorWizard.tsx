@@ -10,10 +10,13 @@ import { cn } from '../../lib/utils';
 import { WatchSchedule } from '../../contexts/DataContext';
 import { supabase } from '../../lib/supabase';
 import { Switch } from '../../components/ui/switch';
+import CustomPaywall from '../../components/subscription/CustomPaywall';
+import { useSubscription } from '../../context/SubscriptionContext';
 
 export default function ScheduleGeneratorWizard() {
     const { users, createSchedule, toggleWatchLeader } = useData();
     const { user: currentUser } = useAuth();
+    const { isSubscribed } = useSubscription();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -91,8 +94,9 @@ export default function ScheduleGeneratorWizard() {
         return [];
     });
 
-    // -- Step 3: Preview State --
+    // -- Step 3: Preview and Paywall State --
     const [previewSchedule, setPreviewSchedule] = useState<WatchSchedule | null>(null);
+    const [showPaywall, setShowPaywall] = useState(false);
 
     // Filter crew logic updated to only look at `users` state directly
     // This perfectly matches what the CaptainCrewView displays.
@@ -151,10 +155,16 @@ export default function ScheduleGeneratorWizard() {
             for (let i = 0; i < crewPerWatch; i++) {
                 let crewIndex = (iter - i) % totalCrew;
                 if (crewIndex < 0) crewIndex += totalCrew;
+
+                const u = orderedCrew[crewIndex];
+                const isCaptain = u.id === currentUser?.id;
+                const fName = u.firstName?.trim() || (isCaptain ? currentUser?.firstName?.trim() : '') || 'Unknown';
+                const lName = u.lastName?.trim() || (isCaptain ? currentUser?.lastName?.trim() : '') || 'Crew';
+
                 activeCrewInChunk.push({
-                    userId: orderedCrew[crewIndex].id,
-                    userFirstName: orderedCrew[crewIndex].firstName,
-                    userLastName: orderedCrew[crewIndex].lastName
+                    userId: u.id,
+                    userFirstName: fName,
+                    userLastName: lName
                 });
             }
 
@@ -185,6 +195,11 @@ export default function ScheduleGeneratorWizard() {
     };
 
     const handlePublish = async () => {
+        if (!isSubscribed) {
+            setShowPaywall(true);
+            return;
+        }
+
         if (!previewSchedule) return;
         const { id: _id, ...scheduleData } = previewSchedule;
         const targetVesselId = currentUser?.vesselId;
@@ -347,6 +362,9 @@ export default function ScheduleGeneratorWizard() {
                             {availableCrew.map(u => {
                                 const rank = getSelectionOrder(u.id);
                                 const isSelected = rank !== null;
+                                const isCaptain = u.id === currentUser?.id;
+                                const fName = u.firstName?.trim() || (isCaptain ? currentUser?.firstName?.trim() : '') || 'Unknown';
+                                const lName = u.lastName?.trim() || (isCaptain ? currentUser?.lastName?.trim() : '') || 'Crew';
 
                                 return (
                                     <div
@@ -361,10 +379,10 @@ export default function ScheduleGeneratorWizard() {
                                     >
                                         <div className="flex items-center gap-4">
                                             <div className={cn("h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold border", isSelected ? "bg-background text-primary border-primary/20" : "bg-secondary text-muted-foreground border-transparent")}>
-                                                {u.firstName ? u.firstName.charAt(0) : '?'}
+                                                {fName.charAt(0).toUpperCase()}
                                             </div>
                                             <div>
-                                                <div className="font-semibold text-sm">{u.firstName} {u.lastName}</div>
+                                                <div className="font-semibold text-sm">{fName} {lName}</div>
                                                 <div className="text-xs text-muted-foreground capitalize">{u.customRole || u.role}</div>
                                             </div>
                                         </div>
@@ -435,6 +453,10 @@ export default function ScheduleGeneratorWizard() {
                     </div>
                 )}
             </div>
+
+            {showPaywall && (
+                <CustomPaywall onClose={() => setShowPaywall(false)} />
+            )}
         </div>
     );
 }

@@ -41,8 +41,8 @@ BEGIN
     RETURN QUERY
     SELECT 
         p.id,
-        p.first_name,
-        p.last_name,
+        COALESCE(p.first_name, split_part(p.name, ' ', 1), 'Unknown') as first_name,
+        COALESCE(p.last_name, substring(p.name from position(' ' in p.name) + 1), 'Crew') as last_name,
         -- If role is null (legacy captain rows), use 'captain' for the captain and 'crew' for everyone else
         COALESCE(vm.role::text, CASE WHEN p.id = v_captain_id THEN 'captain' ELSE 'crew' END) as role,
         p.custom_role,

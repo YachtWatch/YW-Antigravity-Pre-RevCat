@@ -29,6 +29,8 @@ export function CrewScheduleView({ schedule, user }: CrewScheduleViewProps) {
         ? (new Date(firstSlot.end).getTime() - new Date(firstSlot.start).getTime()) / (1000 * 60 * 60)
         : 0;
 
+    const displayCrewPerWatch = schedule.crewPerWatch || (firstSlot ? firstSlot.crew.length : '-');
+
     return (
         <div className="space-y-6">
             <Card className="schedule-meta-card p-5 shadow-sm bg-card text-card-foreground border dark:bg-[#1a1f2e] dark:text-white dark:border-none">
@@ -65,7 +67,7 @@ export function CrewScheduleView({ schedule, user }: CrewScheduleViewProps) {
                                 <span>Duration</span>
                             </div>
                             <div className="text-lg font-semibold text-foreground">
-                                {watchDurationHours.toFixed(1)}h <span className="text-sm font-normal text-muted-foreground">watches</span>
+                                {Number.isInteger(watchDurationHours) ? watchDurationHours : watchDurationHours.toFixed(1)}h <span className="text-sm font-normal text-muted-foreground">watches</span>
                             </div>
                         </div>
 
@@ -77,7 +79,7 @@ export function CrewScheduleView({ schedule, user }: CrewScheduleViewProps) {
                                 <span>Crew</span>
                             </div>
                             <div className="text-lg font-semibold text-foreground">
-                                {schedule.crewPerWatch ? schedule.crewPerWatch : '-'} <span className="text-sm font-normal text-muted-foreground">per watch</span>
+                                {displayCrewPerWatch} <span className="text-sm font-normal text-muted-foreground">per watch</span>
                             </div>
                         </div>
                     </div>

@@ -193,8 +193,8 @@ export default function CrewDashboard() {
                         {/* 3-Card Vessel Stats (Moved to Top) */}
                         <div className="grid grid-cols-3 gap-4">
                             {/* Vessel Name */}
-                            <Card className="flex flex-col items-center justify-center p-6 bg-card text-center hover:shadow-md transition-shadow">
-                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
+                            <Card className="flex flex-col items-center justify-start py-6 px-4 bg-card text-center hover:shadow-md transition-shadow">
+                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary shrink-0">
                                     <Ship className="h-6 w-6" />
                                 </div>
                                 <div className="text-sm text-muted-foreground font-medium mb-1">Vessel</div>
@@ -202,8 +202,8 @@ export default function CrewDashboard() {
                             </Card>
 
                             {/* Vessel Length */}
-                            <Card className="flex flex-col items-center justify-center p-6 bg-card text-center hover:shadow-md transition-shadow">
-                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
+                            <Card className="flex flex-col items-center justify-start py-6 px-4 bg-card text-center hover:shadow-md transition-shadow">
+                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary shrink-0">
                                     <Sailboat className="h-6 w-6" />
                                 </div>
                                 <div className="text-sm text-muted-foreground font-medium mb-1">Length</div>
@@ -211,8 +211,8 @@ export default function CrewDashboard() {
                             </Card>
 
                             {/* Crew Size */}
-                            <Card className="flex flex-col items-center justify-center p-6 bg-card text-center hover:shadow-md transition-shadow">
-                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
+                            <Card className="flex flex-col items-center justify-start py-6 px-4 bg-card text-center hover:shadow-md transition-shadow">
+                                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary shrink-0">
                                     <Users className="h-6 w-6" />
                                 </div>
                                 <div className="text-sm text-muted-foreground font-medium mb-1">Crew</div>
@@ -322,14 +322,19 @@ export default function CrewDashboard() {
                                     {currentGlobalSlot ? (
                                         <div className="flex flex-col gap-3">
                                             <div className="flex flex-col gap-2">
-                                                {currentGlobalSlot.crew.map((c: any) => (
-                                                    <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
-                                                        <div className="h-8 w-8 rounded-full bg-secondary border flex items-center justify-center font-bold text-sm shadow-sm">
-                                                            {c.userFirstName ? c.userFirstName[0] : '?'}
+                                                {currentGlobalSlot.crew.map((c: any) => {
+                                                    const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                    const fname = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
+                                                    const lname = u?.lastName?.trim() || c.userLastName?.trim() || 'Crew';
+                                                    return (
+                                                        <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
+                                                            <div className="h-8 w-8 rounded-full bg-secondary border flex items-center justify-center font-bold text-sm shadow-sm">
+                                                                {fname.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <span className="font-medium text-sm">{fname} {lname}</span>
                                                         </div>
-                                                        <span className="font-medium text-sm">{c.userFirstName} {c.userLastName}</span>
-                                                    </div>
-                                                ))}
+                                                    )
+                                                })}
                                             </div>
                                         </div>
                                     ) : (
@@ -344,14 +349,19 @@ export default function CrewDashboard() {
                                                 <span>{formatTime(nextGlobalSlot.start)}</span>
                                             </div>
                                             <div className="flex flex-col gap-2">
-                                                {nextGlobalSlot.crew.map((c: any) => (
-                                                    <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
-                                                        <div className="h-6 w-6 rounded-full bg-secondary border flex items-center justify-center font-bold text-xs shadow-sm">
-                                                            {c.userFirstName ? c.userFirstName[0] : '?'}
+                                                {nextGlobalSlot.crew.map((c: any) => {
+                                                    const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                    const fname = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
+                                                    const lname = u?.lastName?.trim() || c.userLastName?.trim() || 'Crew';
+                                                    return (
+                                                        <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
+                                                            <div className="h-6 w-6 rounded-full bg-secondary border flex items-center justify-center font-bold text-xs shadow-sm">
+                                                                {fname.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <span className="font-medium text-sm text-muted-foreground">{fname} {lname}</span>
                                                         </div>
-                                                        <span className="font-medium text-sm text-muted-foreground">{c.userFirstName} {c.userLastName}</span>
-                                                    </div>
-                                                ))}
+                                                    )
+                                                })}
                                             </div>
                                         </div>
                                     )}

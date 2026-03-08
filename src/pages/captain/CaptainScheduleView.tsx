@@ -140,6 +140,8 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
         ? (new Date(firstSlot.end).getTime() - new Date(firstSlot.start).getTime()) / (1000 * 60 * 60)
         : 0;
 
+    const displayCrewPerWatch = schedule.crewPerWatch || (firstSlot ? firstSlot.crew.length : '-');
+
     const handleDelete = () => {
         setShowDeleteConfirm(true);
     };
@@ -246,7 +248,7 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
                                     <span>Duration</span>
                                 </div>
                                 <div className="text-lg font-semibold text-foreground">
-                                    {watchDurationHours.toFixed(1)}h <span className="text-sm font-normal text-muted-foreground">watches</span>
+                                    {Number.isInteger(watchDurationHours) ? watchDurationHours : watchDurationHours.toFixed(1)}h <span className="text-sm font-normal text-muted-foreground">watches</span>
                                 </div>
                             </div>
 
@@ -258,7 +260,7 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
                                     <span>Crew</span>
                                 </div>
                                 <div className="text-lg font-semibold text-foreground">
-                                    {schedule.crewPerWatch ? schedule.crewPerWatch : '-'} <span className="text-sm font-normal text-muted-foreground">per watch</span>
+                                    {displayCrewPerWatch} <span className="text-sm font-normal text-muted-foreground">per watch</span>
                                 </div>
                             </div>
                         </div>

@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
-import { WatchSchedule } from '../contexts/DataContext';
+import { WatchSchedule, useData } from '../contexts/DataContext';
+import { useAuth } from '../contexts/AuthContext';
 import { ChevronDown, ChevronUp, Calendar as CalendarIcon } from 'lucide-react';
 
 interface ScheduleMatrixViewProps {
@@ -13,12 +14,19 @@ interface ScheduleMatrixViewProps {
 }
 
 export function ScheduleMatrixView({ schedule, className, currentUserId, showOnlyUserId, printMode = false }: ScheduleMatrixViewProps) {
+    const { users } = useData();
+    const { user } = useAuth();
+
     // 1. Determine columns (Unique Crew, ordered if possible)
     // For now, we extract unique crew from all slots. In the future, schedule.crewOrder will drive this.
     const crewColumns = useMemo(() => {
         const uniqueCrew = new Map<string, string>(); // Id -> Name
         schedule.slots.forEach(slot => {
-            slot.crew.forEach(c => uniqueCrew.set(c.userId, c.userFirstName));
+            slot.crew.forEach(c => {
+                const liveUser = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                const name = liveUser?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
+                uniqueCrew.set(c.userId, name);
+            });
         });
 
         let allColumns = Array.from(uniqueCrew.entries()).map(([id, firstName]) => ({ id, firstName }));
@@ -147,11 +155,22 @@ export function ScheduleMatrixView({ schedule, className, currentUserId, showOnl
                                             <div
                                                 key={slot.id}
                                                 className={cn(
-                                                    "grid min-h-[50px]",
+                                                    "grid min-h-[50px] relative",
                                                     slot.id === activeSlotId && "bg-primary/5" // Highlight active row background slightly
                                                 )}
                                                 style={{ gridTemplateColumns: `80px repeat(${crewColumns.length}, 1fr)` }}
                                             >
+                                                {/* Continuous Active Line - Span entire row */}
+                                                {slot.id === activeSlotId && (
+                                                    <div
+                                                        className="absolute left-[8px] right-0 h-[1.5px] bg-[#df5750] z-30 pointer-events-none transition-all duration-300 ease-in-out flex items-center shadow-sm"
+                                                        style={{ top: `${getProgress(slot)}%` }}
+                                                    >
+                                                        <div className="absolute -left-[8px] bg-[#df5750] text-[10px] font-medium text-white px-2 py-0.5 rounded-full shadow-sm tabular-nums tracking-wide">
+                                                            {currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: false })}
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 {/* Time Column */}
                                                 <div className={cn(
                                                     "p-2 text-xs text-muted-foreground border-r border-slate-300 dark:border-white/10 flex flex-col justify-center items-center text-center",
@@ -195,16 +214,6 @@ export function ScheduleMatrixView({ schedule, className, currentUserId, showOnl
                                                                     // If connected bottom, extend to bottom edge (0). Else valid gap (bottom-1).
                                                                     isConnectedBottom ? "bottom-0 rounded-b-none border-b-0" : "bottom-1"
                                                                 )} />
-                                                            )}
-
-                                                            {/* Active Line - Highest Z-Index */}
-                                                            {slot.id === activeSlotId && (
-                                                                <div
-                                                                    className="absolute left-0 right-0 h-[2px] bg-red-500 z-20 shadow-[0_0_4px_rgba(239,68,68,0.5)] pointer-events-none transition-all duration-300 ease-in-out"
-                                                                    style={{ top: `${getProgress(slot)}%` }}
-                                                                >
-                                                                    <div className="absolute -left-1 -top-[3px] w-2 h-2 rounded-full bg-red-500" />
-                                                                </div>
                                                             )}
                                                         </div>
                                                     );

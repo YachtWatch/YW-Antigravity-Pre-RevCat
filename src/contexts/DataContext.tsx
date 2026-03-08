@@ -274,21 +274,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
                         const { data: manifestData, error: manifestError } = await supabase.rpc('get_crew_manifest', { v_vessel_id: activeVesselId });
 
                         if (manifestData) {
-                            usersWithVessels = (manifestData as any[]).map(row => ({
-                                id: row.user_id,
-                                email: '',
-                                password: '',
-                                firstName: row.first_name || '',
-                                lastName: row.last_name || '',
-                                role: row.role || 'crew',
-                                customRole: row.custom_role,
-                                vesselId: activeVesselId,
-                                nationality: row.nationality,
-                                passportNumber: row.passport_number,
-                                dateOfBirth: row.date_of_birth,
-                                reminder1: 0,
-                                reminder2: 0
-                            })).sort((a, b) => a.firstName.localeCompare(b.firstName));
+                            usersWithVessels = (manifestData as any[]).map(row => {
+                                const isMe = row.user_id === uid;
+                                return {
+                                    id: row.user_id,
+                                    email: '',
+                                    password: '',
+                                    firstName: row.first_name || (isMe ? authUser.user.user_metadata?.full_name?.split(' ')[0] || authUser.user.user_metadata?.name?.split(' ')[0] || authUser.user.email?.split('@')[0] || 'Captain' : 'Unknown'),
+                                    lastName: row.last_name || (isMe ? authUser.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || authUser.user.user_metadata?.name?.split(' ').slice(1).join(' ') || '' : ''),
+                                    role: row.role || 'crew',
+                                    customRole: row.custom_role,
+                                    vesselId: activeVesselId,
+                                    nationality: row.nationality,
+                                    passportNumber: row.passport_number,
+                                    dateOfBirth: row.date_of_birth,
+                                    reminder1: 0,
+                                    reminder2: 0
+                                };
+                            }).sort((a, b) => a.firstName.localeCompare(b.firstName));
                         } else {
                             console.error("Failed to load Captain Manifest via RPC:", manifestError);
                         }
@@ -305,7 +308,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
                         }
 
                         if (memberData && memberData.length > 0) {
-                            const userIds = memberData.map(m => m.user_id);
+                            let userIds = memberData.map(m => m.user_id);
+
+                            // ⭐️ CRITICAL FIX: The Captain is NOT in `vessel_members`. 
+                            // We MUST manually ensure the captain runs through this profile query too so they appear in Shipmates.
+                            const { data: vesselData } = await supabase.from('vessels').select('captain_id').eq('id', activeVesselId).single();
+                            const vesselCapId = vesselData?.captain_id;
+                            if (vesselCapId && !userIds.includes(vesselCapId)) {
+                                userIds.push(vesselCapId);
+                            }
+
                             const { data: profilesData, error: profilesError } = await supabase
                                 .from('profiles')
                                 .select('id, first_name, last_name, email, custom_role, nationality, reminder_1, reminder_2')
@@ -318,13 +330,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
                             if (profilesData) {
                                 usersWithVessels = profilesData.map(profile => {
                                     const mem = memberData.find(m => m.user_id === profile.id);
+                                    const isMe = profile.id === uid;
                                     return {
                                         id: profile.id,
                                         email: profile.email,
                                         password: '',
-                                        firstName: profile.first_name || '',
-                                        lastName: profile.last_name || '',
-                                        role: mem?.role || 'crew',
+                                        firstName: profile.first_name || (isMe ? authUser.user.user_metadata?.full_name?.split(' ')[0] || authUser.user.user_metadata?.name?.split(' ')[0] || authUser.user.email?.split('@')[0] || 'Unknown' : (profile.email?.split('@')[0] || 'Unknown')),
+                                        lastName: profile.last_name || (isMe ? authUser.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || authUser.user.user_metadata?.name?.split(' ').slice(1).join(' ') || '' : ''),
+                                        role: profile.id === vesselCapId ? 'captain' : (mem?.role || 'crew'),
                                         customRole: profile.custom_role,
                                         vesselId: activeVesselId,
                                         nationality: profile.nationality,
@@ -499,6 +512,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 if (profileVessel && profileVessel.vessel_id === updatedSchedule.vessel_id) {
                     NotificationService.sendLocalAlert('Schedule Updated', `The schedule "${updatedSchedule.name}" has been updated.`);
                 }
+            })
+            // Schedules (DELETE) -> Refresh to clear deleted schedule from UI
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'schedules' }, () => {
+                refreshData();
+            })
+            // Join Requests (DELETE) -> Refresh when request is removed (e.g., crew kicked)
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'join_requests' }, () => {
+                refreshData();
+            })
+            // Vessel Members (ALL) -> Refresh when someone is kicked, added, or role changes
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'vessel_members' }, () => {
+                refreshData();
+            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vessel_members' }, () => {
+                refreshData();
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vessel_members' }, () => {
+                refreshData();
             })
             .subscribe();
 

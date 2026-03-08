@@ -246,8 +246,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 setUser({
                     id: data.id,
-                    firstName: data.first_name || '',
-                    lastName: data.last_name || '',
+                    firstName: data.first_name || metadata?.full_name?.split(' ')[0] || metadata?.name?.split(' ')[0] || email.split('@')[0] || 'Captain',
+                    lastName: data.last_name || metadata?.full_name?.split(' ').slice(1).join(' ') || metadata?.name?.split(' ').slice(1).join(' ') || '',
                     email: data.email || email,
                     role: finalRole as UserRole,
                     vesselId: finalVesselId, // Use resolved ID

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { useData } from '../../contexts/DataContext';
@@ -12,9 +12,6 @@ import { generateSchedule as generateScheduleLogic } from '../../lib/scheduler';
 import { CaptainScheduleView } from './CaptainScheduleView';
 import { CaptainCrewView } from './CaptainCrewView';
 import { getCurrentSlot } from '../../lib/time-utils';
-
-import CustomPaywall from '../../components/subscription/CustomPaywall';
-import { useSubscription } from '../../context/SubscriptionContext';
 import { useWatchLogic } from '../../hooks/useWatchLogic';
 
 const formatTime = (isoString: string) => {
@@ -27,15 +24,7 @@ const formatTime = (isoString: string) => {
 export default function CaptainDashboard() {
     const { user, updateUser, loading: authLoading } = useAuth();
     const { createVessel, getVessel, getRequestsForVessel, updateRequestStatus, createSchedule, getSchedule, updateUserInStore, updateScheduleSlot, updateScheduleSettings, removeCrew, updateCrewRole, users, refreshData, deleteSchedule, loading, checkInToWatch } = useData();
-    const { isSubscribed, loading: subLoading } = useSubscription();
     const [activeTab, setActiveTab] = useState<'dashboard' | 'schedule' | 'crew'>('dashboard');
-    const [showPaywall, setShowPaywall] = useState(false);
-
-    useEffect(() => {
-        if (!subLoading && !isSubscribed) {
-            setShowPaywall(true);
-        }
-    }, [subLoading, isSubscribed]);
 
     // Vessel Setup State
     const [vesselName, setVesselName] = useState('');
@@ -265,17 +254,17 @@ export default function CaptainDashboard() {
                                 {/* 3-Card Vessel Stats (Moved to Top) */}
                                 <div className="grid grid-cols-3 gap-4">
                                     {/* Vessel Name */}
-                                    <Card className="flex flex-col items-center justify-center p-6 bg-card text-center hover:shadow-md transition-shadow relative group">
-                                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
+                                    <Card className="flex flex-col items-center justify-start py-6 px-4 bg-card text-center hover:shadow-md transition-shadow relative group">
+                                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary shrink-0">
                                             <Ship className="h-6 w-6" />
                                         </div>
-                                        <div className="text-sm text-muted-foreground font-medium mb-1">Vessel Name</div>
-                                        <div className="font-bold text-lg leading-tight break-words px-2">{vessel.name}</div>
+                                        <div className="text-sm text-muted-foreground font-medium mb-1">Vessel</div>
+                                        <div className="font-bold text-lg leading-tight break-words">{vessel.name}</div>
                                     </Card>
 
                                     {/* Vessel Length */}
-                                    <Card className="flex flex-col items-center justify-center p-6 bg-card text-center hover:shadow-md transition-shadow">
-                                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
+                                    <Card className="flex flex-col items-center justify-start py-6 px-4 bg-card text-center hover:shadow-md transition-shadow">
+                                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary shrink-0">
                                             <Sailboat className="h-6 w-6" />
                                         </div>
                                         <div className="text-sm text-muted-foreground font-medium mb-1">Length</div>
@@ -283,8 +272,8 @@ export default function CaptainDashboard() {
                                     </Card>
 
                                     {/* Crew Size */}
-                                    <Card className="flex flex-col items-center justify-center p-6 bg-card text-center hover:shadow-md transition-shadow">
-                                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary">
+                                    <Card className="flex flex-col items-center justify-start py-6 px-4 bg-card text-center hover:shadow-md transition-shadow">
+                                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 text-primary shrink-0">
                                             <Users className="h-6 w-6" />
                                         </div>
                                         <div className="text-sm text-muted-foreground font-medium mb-1">Crew Size</div>
@@ -430,9 +419,20 @@ export default function CaptainDashboard() {
                                                                         <div key={c.userId} className="flex items-center justify-between p-2 rounded-lg bg-secondary/50">
                                                                             <div className="flex items-center gap-3">
                                                                                 <div className="h-8 w-8 rounded-full bg-secondary border flex items-center justify-center font-bold text-sm shadow-sm">
-                                                                                    {c.userFirstName ? c.userFirstName[0] : '?'}
+                                                                                    {(() => {
+                                                                                        const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                                                        const name = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
+                                                                                        return name.charAt(0).toUpperCase();
+                                                                                    })()}
                                                                                 </div>
-                                                                                <span className="font-medium text-sm">{c.userFirstName} {c.userLastName}</span>
+                                                                                <span className="font-medium text-sm">
+                                                                                    {(() => {
+                                                                                        const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                                                        const fname = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
+                                                                                        const lname = u?.lastName?.trim() || c.userLastName?.trim() || 'Crew';
+                                                                                        return `${fname} ${lname}`;
+                                                                                    })()}
+                                                                                </span>
                                                                             </div>
 
                                                                             {/* Status Dot / Timer */}
@@ -464,14 +464,20 @@ export default function CaptainDashboard() {
                                                                 <span>{formatTime(nextGlobalSlot.start)}</span>
                                                             </div>
                                                             <div className="flex flex-col gap-2">
-                                                                {nextGlobalSlot.crew.map((c: any) => (
-                                                                    <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
-                                                                        <div className="h-6 w-6 rounded-full bg-secondary border flex items-center justify-center font-bold text-xs shadow-sm">
-                                                                            {c.userFirstName ? c.userFirstName[0] : '?'}
+                                                                {nextGlobalSlot.crew.map((c: any) => {
+                                                                    const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                                    const fname = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
+                                                                    const lname = u?.lastName?.trim() || c.userLastName?.trim() || 'Crew';
+
+                                                                    return (
+                                                                        <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/30">
+                                                                            <div className="h-6 w-6 rounded-full bg-secondary border flex items-center justify-center font-bold text-xs shadow-sm">
+                                                                                {fname.charAt(0).toUpperCase()}
+                                                                            </div>
+                                                                            <span className="font-medium text-sm text-muted-foreground">{fname} {lname}</span>
                                                                         </div>
-                                                                        <span className="font-medium text-sm text-muted-foreground">{c.userFirstName} {c.userLastName}</span>
-                                                                    </div>
-                                                                ))}
+                                                                    )
+                                                                })}
                                                             </div>
                                                         </div>
                                                     )}
@@ -530,10 +536,6 @@ export default function CaptainDashboard() {
             <div className="print:hidden">
                 <BottomTabs activeTab={activeTab} onTabChange={setActiveTab} />
             </div>
-
-            {showPaywall && (
-                <CustomPaywall onClose={() => setShowPaywall(false)} />
-            )}
         </div>
     );
 }

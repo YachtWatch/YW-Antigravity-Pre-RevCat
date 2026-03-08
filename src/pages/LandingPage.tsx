@@ -88,7 +88,7 @@ export default function LandingPage() {
             <header className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center py-20 overflow-hidden">
                 <div className="absolute inset-0 z-0">
                     <img
-                        src="/src/assets/hero-bg.jpg"
+                        src="/hero-bg.jpg"
                         alt="Superyacht from above"
                         className="absolute inset-0 w-full h-full object-cover object-top"
                     />
@@ -118,10 +118,10 @@ export default function LandingPage() {
                     {/* App Badges - Bottom Right */}
                     <div className="absolute -bottom-32 right-0 flex items-center gap-3">
                         <a href="#" className="hover:opacity-80 transition-opacity block">
-                            <img src="/src/assets/app-store-badge.svg" alt="Download on the App Store" className="h-8 w-auto" />
+                            <img src="/app-store-badge.svg" alt="Download on the App Store" className="h-8 w-auto" />
                         </a>
                         <a href="#" className="hover:opacity-80 transition-opacity block">
-                            <img src="/src/assets/google-play-badge.svg" alt="Get it on Google Play" className="h-8 w-auto" />
+                            <img src="/google-play-badge.svg" alt="Get it on Google Play" className="h-8 w-auto" />
                         </a>
                     </div>
                 </div>
