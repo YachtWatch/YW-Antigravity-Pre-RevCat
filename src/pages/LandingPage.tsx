@@ -10,12 +10,10 @@ import {
     X,
     Ship
 } from 'lucide-react';
-import { useTheme } from '../components/theme-provider';
-import { Button } from '../components/ui/button';
 import { useState } from 'react';
+import { Button } from '../components/ui/button';
 
 export default function LandingPage() {
-    const { setTheme, theme } = useTheme();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
@@ -34,15 +32,6 @@ export default function LandingPage() {
 
                     {/* Desktop Nav */}
                     <div className="hidden md:flex items-center gap-6">
-
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                            className="text-muted-foreground"
-                        >
-                            {theme === 'dark' ? 'Light' : 'Dark'} Mode
-                        </Button>
                         <div className="flex items-center gap-2 ml-2">
                             <Link to="/auth/login">
                                 <Button variant="ghost">Sign In</Button>
@@ -55,13 +44,6 @@ export default function LandingPage() {
 
                     {/* Mobile Menu Toggle */}
                     <div className="md:hidden flex items-center gap-4">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                        >
-                            {theme === 'dark' ? '☀️' : '🌙'}
-                        </Button>
                         <button onClick={toggleMenu} className="text-foreground">
                             {isMenuOpen ? <X /> : <Menu />}
                         </button>
