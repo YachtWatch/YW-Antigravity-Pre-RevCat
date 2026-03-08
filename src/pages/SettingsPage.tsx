@@ -191,9 +191,16 @@ export default function SettingsPage() {
                         <CardHeader>
                             <CardTitle className="text-lg">About</CardTitle>
                         </CardHeader>
-                        <CardContent className="text-sm text-muted-foreground space-y-1">
+                        <CardContent className="text-sm text-muted-foreground space-y-3">
                             <div>YachtWatch v1.0.0</div>
                             <div>© 2026 YachtWatch</div>
+                            <Button
+                                variant="outline"
+                                className="w-full mt-2 gap-2"
+                                onClick={() => window.open('https://yachtwatch.co/#contact', '_blank')}
+                            >
+                                Contact Us
+                            </Button>
                         </CardContent>
                     </Card>
                 </div>

@@ -13,6 +13,75 @@ import {
 import { useState } from 'react';
 import { Button } from '../components/ui/button';
 
+function ContactForm() {
+    const [form, setForm] = useState({ name: '', email: '', message: '' });
+    const [submitted, setSubmitted] = useState(false);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const subject = encodeURIComponent(`YachtWatch Contact from ${form.name}`);
+        const body = encodeURIComponent(`Name: ${form.name}\nEmail: ${form.email}\n\nMessage:\n${form.message}`);
+        window.location.href = `mailto:support@yachtwatch.co?subject=${subject}&body=${body}`;
+        setSubmitted(true);
+    };
+
+    if (submitted) {
+        return (
+            <div className="text-center py-12 space-y-3 bg-card border border-border rounded-2xl px-8">
+                <div className="text-3xl">✅</div>
+                <h3 className="text-xl font-semibold">Message sent!</h3>
+                <p className="text-muted-foreground">Thanks for reaching out — we'll get back to you as soon as possible.</p>
+                <Button variant="ghost" className="mt-2" onClick={() => { setSubmitted(false); setForm({ name: '', email: '', message: '' }); }}>
+                    Send another message
+                </Button>
+            </div>
+        );
+    }
+
+    return (
+        <form onSubmit={handleSubmit} className="bg-card border border-border rounded-2xl p-8 shadow-sm space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">Name</label>
+                    <input
+                        type="text"
+                        required
+                        placeholder="Your name"
+                        value={form.name}
+                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">Email</label>
+                    <input
+                        type="email"
+                        required
+                        placeholder="you@example.com"
+                        value={form.email}
+                        onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                        className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                </div>
+            </div>
+            <div className="space-y-1.5">
+                <label className="text-sm font-medium text-foreground">Message</label>
+                <textarea
+                    required
+                    rows={5}
+                    placeholder="How can we help?"
+                    value={form.message}
+                    onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                />
+            </div>
+            <Button type="submit" className="w-full bg-[#1E3A8A] hover:bg-[#1E3A8A]/90 text-white h-11 text-base">
+                Send Message
+            </Button>
+        </form>
+    );
+}
+
 export default function LandingPage() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -177,10 +246,20 @@ export default function LandingPage() {
                 </div>
             </section>
 
-            {/* Split View: Captain vs Crew */}
+            {/* Contact Us Section */}
+            <section id="contact" className="py-24 bg-muted/30">
+                <div className="container mx-auto px-4 max-w-2xl">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold mb-4">Get in Touch</h2>
+                        <p className="text-muted-foreground text-lg">Have a question or need help? We'd love to hear from you.</p>
+                    </div>
 
+                    <ContactForm />
+                </div>
+            </section>
 
             {/* CTA Bottom */}
+
 
 
             {/* Footer */}
