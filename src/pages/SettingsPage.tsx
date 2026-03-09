@@ -201,6 +201,20 @@ export default function SettingsPage() {
                             >
                                 Contact Us
                             </Button>
+                            <Button
+                                variant="ghost"
+                                className="w-full gap-2 text-muted-foreground"
+                                onClick={() => window.open('https://yachtwatch.co/privacy-policy', '_blank')}
+                            >
+                                Privacy Policy
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                className="w-full gap-2 text-muted-foreground"
+                                onClick={() => window.open('https://yachtwatch.co/terms-of-service', '_blank')}
+                            >
+                                Terms of Service
+                            </Button>
                         </CardContent>
                     </Card>
                 </div>

@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.yachtwatch.app',
+  appId: 'com.yachtwatch.ios',
   appName: 'YachtWatch',
   webDir: 'dist',
   plugins: {

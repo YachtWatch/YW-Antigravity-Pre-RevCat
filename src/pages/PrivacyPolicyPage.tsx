@@ -1,55 +1,145 @@
-import { Shield } from 'lucide-react';
+import { Shield, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function PrivacyPolicyPage() {
+    const navigate = useNavigate();
+
     return (
-        <div className="min-h-screen bg-background py-16 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-3xl mx-auto">
-                <div className="text-center mb-12">
-                    <Shield className="h-12 w-12 text-primary mx-auto mb-4" />
-                    <h1 className="text-4xl font-extrabold tracking-tight text-foreground">Privacy Policy</h1>
-                    <p className="mt-4 text-lg text-muted-foreground">
-                        Last Updated: {new Date().toLocaleDateString()}
-                    </p>
+        <div className="min-h-screen bg-background">
+            {/* Header */}
+            <header className="border-b border-border/40 bg-background/80 backdrop-blur-md sticky top-0 z-50">
+                <div className="container mx-auto px-4 h-16 flex items-center gap-4 max-w-3xl">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 -ml-2 hover:bg-accent rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+                    >
+                        <ArrowLeft className="h-5 w-5" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                        <Shield className="h-5 w-5 text-[#1E3A8A]" />
+                        <span className="font-semibold">Privacy Policy</span>
+                    </div>
+                </div>
+            </header>
+
+            <main className="container mx-auto px-4 py-12 max-w-3xl">
+                {/* Title */}
+                <div className="mb-10">
+                    <h1 className="text-3xl font-extrabold tracking-tight text-foreground mb-2">
+                        YachtWatch Privacy Policy
+                    </h1>
+                    <p className="text-muted-foreground text-sm">Effective Date: March 2026</p>
                 </div>
 
-                <div className="prose prose-slate dark:prose-invert max-w-none">
-                    <p>
-                        YachtWatch ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use the YachtWatch mobile application and associated services (collectively, the "App").
-                    </p>
+                <div className="space-y-8 text-sm leading-relaxed text-foreground/90">
 
-                    <h2>1. Information We Collect</h2>
-                    <p>We may collect information about you in a variety of ways. The information we may collect via the App includes:</p>
-                    <ul>
-                        <li><strong>Personal Data:</strong> Demographic and other personally identifiable information (such as your name, email address, nationality, date of birth, and passport number) that you voluntarily give to us when choosing to participate in various activities related to the App.</li>
-                        <li><strong>Vessel Data:</strong> Information regarding boats you captain or crew on, including vessel name, type, and watch schedules.</li>
-                        <li><strong>Device Data:</strong> Information our servers automatically collect when you access the App, such as your native actions that are integral to the App, as well as your device type and OS version.</li>
-                        <li><strong>Push Notifications:</strong> We may request to send you push notifications regarding your account or the App. If you wish to opt-out from receiving these types of communications, you may turn them off in your device's settings.</li>
-                    </ul>
+                    <Section number="1" title="Responsible Party">
+                        <p>YachtWatch is operated by the developer of the YachtWatch application, currently based in South Africa.</p>
+                        <p className="mt-2">For privacy inquiries or data requests please contact: <a href="mailto:yachtwatch@protonmail.com" className="text-[#1E3A8A] hover:underline font-medium">yachtwatch@protonmail.com</a>.</p>
+                    </Section>
 
-                    <h2>2. How We Use Your Information</h2>
-                    <p>Having accurate information about you permits us to provide you with a smooth, efficient, and customized experience. Specifically, we may use information collected about you via the App to:</p>
-                    <ul>
-                        <li>Create and manage your account.</li>
-                        <li>Facilitate vessel management and crew scheduling.</li>
-                        <li>Email you regarding your account or order.</li>
-                        <li>Prevent fraudulent transactions, monitor against theft, and protect against criminal activity.</li>
-                        <li>Deliver targeted advertising, coupons, newsletters, and other information regarding promotions and the App to you (if you have opted-in).</li>
-                    </ul>
+                    <Section number="2" title="Data We Collect">
+                        <p>YachtWatch may collect the following information:</p>
+                        <ul className="mt-3 space-y-1 list-disc list-inside text-muted-foreground">
+                            <li>Name and surname</li>
+                            <li>Email address</li>
+                            <li>Date of birth</li>
+                            <li>Nationality</li>
+                            <li>Optional passport number</li>
+                            <li>IP address</li>
+                            <li>Device type</li>
+                            <li>Operating system version</li>
+                            <li>Session identifiers</li>
+                            <li>Subscription and purchase metadata</li>
+                        </ul>
+                    </Section>
 
-                    <h2>3. Disclosure of Your Information</h2>
-                    <p>We may share information we have collected about you in certain situations. Your information may be disclosed as follows:</p>
-                    <ul>
-                        <li><strong>By Law or to Protect Rights:</strong> If we believe the release of information about you is necessary to respond to legal process, to investigate or remedy potential violations of our policies, or to protect the rights, property, and safety of others.</li>
-                        <li><strong>Between Captains and Crew:</strong> Limited profile information (such as your name, role, and schedule preferences) is shared with the Captain and other crew members of a vessel you join to facilitate operations. Core identifying numbers (like Passport Number) are strictly restricted and secured.</li>
-                        <li><strong>Third-Party Service Providers:</strong> We may share your information with third parties that perform services for us or on our behalf, including payment processing (e.g., Apple, Google, RevenueCat), data analysis, email delivery, hosting services (e.g., Supabase), customer service, and marketing assistance.</li>
-                    </ul>
+                    <Section number="3" title="Legal Basis for Processing">
+                        <p>Personal data is processed under the following legal bases:</p>
+                        <ul className="mt-3 space-y-1 list-disc list-inside text-muted-foreground">
+                            <li>Contractual necessity (to provide the service)</li>
+                            <li>Legitimate interests (to operate and improve the platform)</li>
+                            <li>Consent (for optional passport uploads)</li>
+                            <li>Legal obligations where applicable</li>
+                        </ul>
+                    </Section>
 
-                    <h2>4. Security of Your Information</h2>
-                    <p>We use administrative, technical, and physical security measures (including Row Level Security in our databases) to help protect your personal information. While we have taken reasonable steps to secure the personal information you provide to us, please be aware that despite our efforts, no security measures are perfect or impenetrable.</p>
+                    <Section number="4" title="Data Hosting & Security">
+                        <p>YachtWatch uses secure cloud infrastructure hosted in the European Union (EU West 1). Data is protected using industry standard security measures including encryption in transit and at rest.</p>
+                        <p className="mt-2">While strong security practices are used, no system can guarantee absolute security.</p>
+                    </Section>
 
-                    <h2>5. Contact Us</h2>
-                    <p>If you have questions or comments about this Privacy Policy, please contact us at: [Insert Contact Email Here]</p>
+                    <Section number="5" title="International Data Transfers">
+                        <p>Your information may be transferred to and processed in countries other than your country of residence, including within the European Union where YachtWatch infrastructure is hosted.</p>
+                    </Section>
+
+                    <Section number="6" title="Data Retention">
+                        <p>User data is retained while an account remains active. When a user deletes their account, associated personal data is permanently removed from active systems within a reasonable operational timeframe.</p>
+                    </Section>
+
+                    <Section number="7" title="Data Sharing">
+                        <p>Certain information may be shared within vessel groups to allow the service to function properly. For example, captains and authorised crew members may view relevant crew information required for vessel operations.</p>
+                        <p className="mt-2">Passport information is optional and, if provided, is only visible to the vessel captain and authorised crew members within the same vessel group.</p>
+                        <p className="mt-2">Captains who export or store crew information outside the YachtWatch system act as independent data controllers responsible for their own handling of that data.</p>
+                        <p className="mt-2 font-medium">YachtWatch does not sell personal data.</p>
+                    </Section>
+
+                    <Section number="8" title="Third-Party Services">
+                        <p>YachtWatch uses trusted third-party service providers to operate the platform. These providers may process limited data on our behalf under strict security and confidentiality obligations.</p>
+                        <p className="mt-2">Examples include cloud hosting providers, infrastructure services, and analytics or operational tools required to maintain the service.</p>
+                    </Section>
+
+                    <Section number="9" title="Payments & Subscriptions">
+                        <p>Subscription payments are processed through the Apple App Store. YachtWatch may also use a subscription management platform to manage subscription status and entitlement information.</p>
+                        <p className="mt-2 font-medium">YachtWatch does not store payment card details.</p>
+                    </Section>
+
+                    <Section number="10" title="Data Breach Notification">
+                        <p>If a material data breach occurs that affects user information, YachtWatch will notify affected users in accordance with applicable laws and reasonable security practices.</p>
+                    </Section>
+
+                    <Section number="11" title="Marketing Communications">
+                        <p>Users may receive essential service-related emails such as account notifications or operational messages.</p>
+                        <p className="mt-2">YachtWatch may send marketing emails in the future. Users will always have the ability to opt out of marketing communications.</p>
+                    </Section>
+
+                    <Section number="12" title="User Rights">
+                        <p>Users may request access to their personal data, request corrections, request deletion, or request an export of their data.</p>
+                    </Section>
+
+                    <Section number="13" title="Data Requests">
+                        <p>To submit a privacy or data request, users may contact: <a href="mailto:yachtwatch@protonmail.com" className="text-[#1E3A8A] hover:underline font-medium">yachtwatch@protonmail.com</a></p>
+                    </Section>
+
+                    <Section number="14" title="Children">
+                        <p>The YachtWatch service is not intended for individuals under the age of 18.</p>
+                    </Section>
+
+                    <Section number="15" title="Changes to This Policy">
+                        <p>This privacy policy may be updated periodically to reflect operational, legal, or regulatory changes. Users will be notified of significant updates where required.</p>
+                    </Section>
+
                 </div>
+
+                <div className="mt-12 pt-8 border-t border-border text-center text-xs text-muted-foreground">
+                    © {new Date().getFullYear()} YachtWatch. All rights reserved.
+                </div>
+            </main>
+        </div>
+    );
+}
+
+function Section({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
+    return (
+        <div className="rounded-xl border border-border bg-card/50 p-6">
+            <h2 className="text-base font-semibold text-foreground mb-3 flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#1E3A8A]/10 text-[#1E3A8A] text-xs font-bold shrink-0">
+                    {number}
+                </span>
+                {title}
+            </h2>
+            <div className="text-muted-foreground">
+                {children}
             </div>
         </div>
     );
