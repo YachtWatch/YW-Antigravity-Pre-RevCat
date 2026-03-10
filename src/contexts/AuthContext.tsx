@@ -24,6 +24,7 @@ interface AuthContextType {
     logout: () => Promise<void>;
     updateUser: (updates: Partial<User>) => void;
     refreshUser: () => Promise<void>;
+    deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,23 +44,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
 
             if (session?.user) {
+                // Check local storage for an instant load
+                const cacheKey = `yw_user_cache_${session.user.id}`;
+                const cached = localStorage.getItem(cacheKey);
+                if (cached && event === 'INITIAL_SESSION') {
+                    try {
+                        const parsedUser = JSON.parse(cached);
+                        setUser(parsedUser);
+                        setLoading(false); // Instant load unlock
+                    } catch (e) {
+                        console.warn("Failed to parse cached user data", e);
+                    }
+                }
+
                 // Always re-fetch on sign-in or token refresh to prevent stale vesselId state.
-                // Skipping on other events (e.g. INITIAL_SESSION handled separately) is safe.
-                const shouldFetch = !user || user.id !== session.user.id || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED';
+                // Or if it's the initial session, we still want to fetch in the background to ensure data isn't stale.
+                const shouldFetch = !user || user.id !== session.user.id || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION';
                 if (shouldFetch) {
-                    setLoading(true);
-                    await fetchProfile(session.user.id, session.user.email!, session.user.user_metadata);
+                    // Only show loading spinner if we didn't just load from cache
+                    const showLoading = !cached || event !== 'INITIAL_SESSION';
+                    await fetchProfile(session.user.id, session.user.email!, session.user.user_metadata, showLoading);
                 } else {
                     setLoading(false);
                 }
             } else {
-                setUser(null);
+                setUserWrapper(null);
                 setLoading(false);
             }
         });
 
         return () => subscription.unsubscribe();
     }, []);
+
+    // Wrapper for setUser to handle syncing to localStorage
+    const setUserWrapper = (newUser: User | null | ((curr: User | null) => User | null)) => {
+        setUser((currentUser) => {
+            const nextUser = typeof newUser === 'function' ? newUser(currentUser) : newUser;
+            if (nextUser) {
+                localStorage.setItem(`yw_user_cache_${nextUser.id}`, JSON.stringify(nextUser));
+            } else if (currentUser) {
+                localStorage.removeItem(`yw_user_cache_${currentUser.id}`);
+            }
+            return nextUser;
+        });
+    };
 
     const fetchProfile = async (userId: string, email: string, metadata?: any, showLoading = true) => {
 
@@ -112,9 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 if (insertError) {
                     console.error("❌ [AuthDebug] Failed to auto-create profile in 'profiles' table:", insertError);
-                    setUser({ id: userId, firstName: 'Pending', lastName: 'Setup', email: email, role: 'crew' });
+                    setUserWrapper({ id: userId, firstName: 'Pending', lastName: 'Setup', email: email, role: 'crew' });
                 } else {
-                    setUser({
+                    setUserWrapper({
                         id: userId,
                         firstName: newProfile.first_name,
                         lastName: newProfile.last_name,
@@ -141,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     role: (metadata?.role === 'captain' || metadata?.role === 'crew') ? metadata.role : 'crew' as UserRole,
                 };
 
-                setUser(currentUser => {
+                setUserWrapper(currentUser => {
                     // SAFETY: If we already have this user and they have a vesselId, don't downgrade them
                     // just because of a temporary fetch error (timeout/network).
                     if (currentUser && currentUser.id === userId && currentUser.vesselId) {
@@ -155,14 +183,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // Determine raw role (default to crew if profile is missing it)
                 let rawProfileRole = data.role || 'crew';
 
-                // Fetch current vessel and role from vessel_members
-                const { data: vesselMember } = await supabase
-                    .from('vessel_members')
-                    .select('vessel_id, role')
-                    .eq('user_id', userId)
-                    .order('joined_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
+                // Parallelize all subsequent remote data fetches to prevent waterfall delays
+                const [
+                    { data: vesselMember },
+                    { data: secureData },
+                    { data: ownedVessel }
+                ] = await Promise.all([
+                    supabase.from('vessel_members').select('vessel_id, role').eq('user_id', userId).order('joined_at', { ascending: false }).limit(1).maybeSingle(),
+                    supabase.from('crew_secure_data').select('passport_number, date_of_birth').eq('user_id', userId).maybeSingle(),
+                    supabase.from('vessels').select('id').eq('captain_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+                ]);
 
                 // 1. Resolve Final Role
                 // If they have a vessel_members entry with a role, it ALWAYS wins over the global profile role.
@@ -182,13 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             // Check vessel ownership — use limit(1) to handle captains who own multiple vessels
                             // (e.g. from duplicate creation). .single() throws a 406 on >1 rows, causing
                             // the self-healing logic to fail and the role to stay as 'crew'.
-                            const { data: ownedVessel } = await supabase
-                                .from('vessels')
-                                .select('id')
-                                .eq('captain_id', userId)
-                                .order('created_at', { ascending: false })
-                                .limit(1)
-                                .maybeSingle();
+                            // (Result already fetched in parallel above via ownedVessel)
 
                             if (ownedVessel) {
 
@@ -207,13 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (finalRole === 'captain') {
                     // Use limit(1) + order to pick the most recent vessel — maybeSingle() alone
                     // returns null if multiple rows match, which would clear the vesselId.
-                    const { data: ownedVessel } = await supabase
-                        .from('vessels')
-                        .select('id')
-                        .eq('captain_id', userId)
-                        .order('created_at', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
+                    // (Result already fetched in parallel above via ownedVessel)
 
                     if (ownedVessel) {
 
@@ -238,13 +256,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
 
                 // 3. Fetch Secure Data for this specific user
-                const { data: secureData } = await supabase
-                    .from('crew_secure_data')
-                    .select('passport_number, date_of_birth')
-                    .eq('user_id', userId)
-                    .maybeSingle();
+                // (Result already fetched in parallel above via secureData)
 
-                setUser({
+                setUserWrapper({
                     id: data.id,
                     firstName: data.first_name || metadata?.full_name?.split(' ')[0] || metadata?.name?.split(' ')[0] || email.split('@')[0] || 'Captain',
                     lastName: data.last_name || metadata?.full_name?.split(' ').slice(1).join(' ') || metadata?.name?.split(' ').slice(1).join(' ') || '',
@@ -269,7 +283,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 email: email,
                 role: (metadata?.role === 'captain' || metadata?.role === 'crew') ? metadata.role : 'crew' as UserRole,
             };
-            setUser(currentUser => {
+            setUserWrapper(currentUser => {
                 if (currentUser && currentUser.id === userId && currentUser.vesselId) {
                     return currentUser;
                 }
@@ -282,12 +296,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const logout = async () => {
         await supabase.auth.signOut();
-        setUser(null);
+        setUserWrapper(null);
     };
+
+    const deleteAccount = async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+            await supabase.from('vessel_members').delete().eq('user_id', user.id);
+            await supabase.from('crew_secure_data').delete().eq('user_id', user.id);
+            await supabase.from('profiles').delete().eq('id', user.id);
+            await supabase.auth.signOut();
+            setUserWrapper(null);
+        } catch (e) {
+            console.error("Failed to delete account data", e);
+            // Even if data deletion fails, we still sign out user to prevent them from staying in broken state
+            await supabase.auth.signOut();
+            setUserWrapper(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
 
     const updateUser = (updates: Partial<User>) => {
         if (!user) return;
-        setUser({ ...user, ...updates });
+        setUserWrapper({ ...user, ...updates });
     }
 
     const refreshUser = async () => {
@@ -302,7 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, logout, updateUser, refreshUser }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, loading, logout, updateUser, refreshUser, deleteAccount }}>
             {children}
         </AuthContext.Provider>
     );

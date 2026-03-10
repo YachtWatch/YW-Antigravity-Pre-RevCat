@@ -10,7 +10,7 @@ import { useData } from '../contexts/DataContext';
 
 export default function SettingsPage() {
     const navigate = useNavigate();
-    const { user, updateUser } = useAuth();
+    const { user, updateUser, deleteAccount } = useAuth();
     const { getVessel, updateVesselSettings, updateUserInStore } = useData();
     const { theme, setTheme } = useTheme();
 
@@ -214,6 +214,18 @@ export default function SettingsPage() {
                                 onClick={() => window.open('https://yachtwatch.co/terms-of-service', '_blank')}
                             >
                                 Terms of Service
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                className="w-full gap-2 mt-4"
+                                onClick={async () => {
+                                    if (window.confirm("Are you sure you want to delete your account? This will disconnect you from your vessels and permanently delete your data.")) {
+                                        await deleteAccount();
+                                        navigate('/');
+                                    }
+                                }}
+                            >
+                                Delete Account
                             </Button>
                         </CardContent>
                     </Card>

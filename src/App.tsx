@@ -12,8 +12,9 @@ import { SubscriptionProvider } from './context/SubscriptionContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { OfflineBanner } from './components/OfflineBanner';
 
-const LandingPage = lazy(() => import('./pages/LandingPage'));
-const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/auth/LoginPage';
+import DashboardIndex from './pages/DashboardIndex';
 const SignupPage = lazy(() => import('./pages/auth/SignupPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
@@ -22,7 +23,6 @@ const CrewDashboard = lazy(() => import('./pages/crew/CrewDashboard'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const CompleteProfilePage = lazy(() => import('./pages/CompleteProfilePage'));
-const DashboardIndex = lazy(() => import('./pages/DashboardIndex'));
 const ScheduleGeneratorWizard = lazy(() => import('./pages/captain/ScheduleGeneratorWizard'));
 const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage'));
 const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage'));
@@ -70,7 +70,7 @@ function App() {
     }, []);
 
     return (
-        <ThemeProvider defaultTheme="system" storageKey="yachtwatch-ui-theme">
+        <ThemeProvider defaultTheme="light" storageKey="yachtwatch-ui-theme">
             <ToastProvider>
                 <DataProvider>
                     <AuthProvider>
