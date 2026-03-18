@@ -1,13 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { LogOut, Settings, User, Menu } from 'lucide-react';
+import { useData } from '../../contexts/DataContext';
+import { LogOut, Settings, User, Menu, Share2 } from 'lucide-react';
+import { InviteShareModal } from '../InviteShareModal';
 
 
 export function ProfileDropdown() {
     const { user, logout } = useAuth();
+    const { getVessel } = useData();
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
+    const [showInvite, setShowInvite] = useState(false);
+
+    const vessel = user?.vesselId ? getVessel(user.vesselId) : null;
+    // Only surface the join code for captains — crew share the app link only.
+    const joinCode = user?.role === 'captain' ? vessel?.joinCode : null;
 
     const handleLogout = () => {
         logout();
@@ -15,63 +23,76 @@ export function ProfileDropdown() {
     };
 
     return (
-        <div className="relative">
-            <button
-                type="button"
-                onClick={() => {
-                    console.log("Profile dropdown toggled");
-                    setIsOpen(!isOpen);
-                }}
-                className="flex items-center gap-2 p-1 rounded-full hover:bg-accent transition-colors cursor-pointer relative z-[101]"
-            >
-                <Menu className="h-6 w-6 text-primary" />
-            </button>
+        <>
+            <div className="relative">
+                <button
+                    type="button"
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="flex items-center gap-2 p-1 rounded-full hover:bg-accent transition-colors cursor-pointer relative z-[101]"
+                >
+                    <Menu className="h-6 w-6 text-primary" />
+                </button>
 
-            {isOpen && (
-                <>
-                    {/* Backdrop */}
-                    <div
-                        className="fixed inset-0 z-[100]"
-                        onClick={() => setIsOpen(false)}
-                    />
+                {isOpen && (
+                    <>
+                        {/* Backdrop */}
+                        <div
+                            className="fixed inset-0 z-[100]"
+                            onClick={() => setIsOpen(false)}
+                        />
 
-                    {/* Dropdown */}
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-card border rounded-lg shadow-lg z-[102] overflow-hidden">
-                        <div className="p-3 border-b bg-muted/30">
-                            <div className="font-medium truncate">{user?.firstName} {user?.lastName}</div>
-                            <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
-                            <div className="text-xs text-primary font-medium capitalize mt-1">{user?.role}</div>
+                        {/* Dropdown */}
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-card border rounded-lg shadow-lg z-[102] overflow-hidden">
+                            <div className="p-3 border-b bg-muted/30">
+                                <div className="font-medium truncate">{user?.firstName} {user?.lastName}</div>
+                                <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
+                                <div className="text-xs text-primary font-medium capitalize mt-1">{user?.role}</div>
+                            </div>
+
+                            <div className="py-1">
+                                <button
+                                    onClick={() => { setIsOpen(false); navigate('/profile'); }}
+                                    className="flex items-center gap-3 w-full px-3 py-2 text-sm hover:bg-accent transition-colors"
+                                >
+                                    <User className="h-4 w-4" />
+                                    Profile
+                                </button>
+                                <button
+                                    onClick={() => { setIsOpen(false); navigate('/settings'); }}
+                                    className="flex items-center gap-3 w-full px-3 py-2 text-sm hover:bg-accent transition-colors"
+                                >
+                                    <Settings className="h-4 w-4" />
+                                    Settings
+                                </button>
+                                <button
+                                    onClick={() => { setIsOpen(false); setShowInvite(true); }}
+                                    className="flex items-center gap-3 w-full px-3 py-2 text-sm hover:bg-accent transition-colors"
+                                >
+                                    <Share2 className="h-4 w-4" />
+                                    Invite &amp; Share
+                                </button>
+                            </div>
+
+                            <div className="border-t py-1">
+                                <button
+                                    onClick={handleLogout}
+                                    className="flex items-center gap-3 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                                >
+                                    <LogOut className="h-4 w-4" />
+                                    Sign out
+                                </button>
+                            </div>
                         </div>
+                    </>
+                )}
+            </div>
 
-                        <div className="py-1">
-                            <button
-                                onClick={() => { setIsOpen(false); navigate('/profile'); }}
-                                className="flex items-center gap-3 w-full px-3 py-2 text-sm hover:bg-accent transition-colors"
-                            >
-                                <User className="h-4 w-4" />
-                                Profile
-                            </button>
-                            <button
-                                onClick={() => { setIsOpen(false); navigate('/settings'); }}
-                                className="flex items-center gap-3 w-full px-3 py-2 text-sm hover:bg-accent transition-colors"
-                            >
-                                <Settings className="h-4 w-4" />
-                                Settings
-                            </button>
-                        </div>
-
-                        <div className="border-t py-1">
-                            <button
-                                onClick={handleLogout}
-                                className="flex items-center gap-3 w-full px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-                            >
-                                <LogOut className="h-4 w-4" />
-                                Sign out
-                            </button>
-                        </div>
-                    </div>
-                </>
-            )}
-        </div>
+            {/* Rendered outside the relative container so it isn't clipped */}
+            <InviteShareModal
+                isOpen={showInvite}
+                onClose={() => setShowInvite(false)}
+                joinCode={joinCode}
+            />
+        </>
     );
 }

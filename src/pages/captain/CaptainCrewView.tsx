@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
 import { UserData, Vessel } from '../../contexts/DataContext';
-import { X, Check, Printer, RefreshCw, Anchor, Compass, Coffee, Wrench, Users, Star, PenLine, Trash2 } from 'lucide-react';
-import { CrewListPrintView } from '../../components/CrewListPrintView'; // Import the print view
+import { X, Check, Printer, RefreshCw, Anchor, Compass, Coffee, Wrench, Users, Star, PenLine, Trash2, UserPlus } from 'lucide-react';
+import { CrewListPrintView } from '../../components/CrewListPrintView';
+import { InviteShareModal } from '../../components/InviteShareModal';
 
 
 interface CaptainCrewViewProps {
@@ -44,6 +45,7 @@ const getDepartment = (role: string) => {
 
 export function CaptainCrewView({ vessel, schedule, captainName, pendingRequests, users, onEditRole, onRemoveCrew, onRequestAction, onRefresh }: CaptainCrewViewProps) {
     const [showPrintView, setShowPrintView] = useState(false);
+    const [showInvite, setShowInvite] = useState(false);
     // Ensure captain is properly represented if missing from users array
     const captainUser = users.find(u => u.id === vessel.captainId) || {
         id: vessel.captainId || 'captain',
@@ -101,23 +103,39 @@ export function CaptainCrewView({ vessel, schedule, captainName, pendingRequests
                 </div>
             )}
 
-            {/* Join Code Card (Moved from Dashboard) */}
+            {/* Join Code Card */}
             <Card className="bg-primary/5 border-primary/20 print:hidden">
-                <CardContent className="flex flex-col sm:flex-row items-center justify-between p-6 gap-4">
-                    <div className="space-y-1 text-center sm:text-left">
+                <CardContent className="p-6 space-y-4">
+                    <div className="space-y-1">
                         <h3 className="font-semibold text-foreground">Vessel Join Code</h3>
                         <p className="text-sm text-muted-foreground">Share this code with your crew to let them join.</p>
                     </div>
-                    <div className="flex flex-col items-center">
-                        <div className="text-3xl font-mono font-bold tracking-[0.2em] text-primary bg-background px-6 py-3 rounded-lg border shadow-sm select-all cursor-pointer hover:border-primary transition-colors"
+                    <div className="flex flex-col items-center gap-1">
+                        <div
+                            className="text-3xl font-mono font-bold tracking-[0.2em] text-primary bg-background px-6 py-3 rounded-lg border shadow-sm select-all cursor-pointer hover:border-primary transition-colors"
                             onClick={() => { navigator.clipboard.writeText(vessel.joinCode); alert('Copied to clipboard!'); }}
-                            title="Click to copy">
+                            title="Click to copy"
+                        >
                             {vessel.joinCode}
                         </div>
                         <span className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-medium">Click to Copy</span>
                     </div>
+                    <Button
+                        variant="outline"
+                        className="w-full gap-2 border-[#1B2A6B] text-[#1B2A6B] hover:bg-[#1B2A6B]/5 font-semibold"
+                        onClick={() => setShowInvite(true)}
+                    >
+                        <UserPlus className="h-4 w-4 shrink-0" />
+                        Invite Crew to YachtWatch
+                    </Button>
                 </CardContent>
             </Card>
+
+            <InviteShareModal
+                isOpen={showInvite}
+                onClose={() => setShowInvite(false)}
+                joinCode={vessel.joinCode}
+            />
 
             {/* Pending Requests Section */}
             <div className="print:hidden">
