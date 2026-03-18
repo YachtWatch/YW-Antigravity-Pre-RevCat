@@ -34,6 +34,7 @@ export default function CrewDashboard() {
     // const [selectedPosition, setSelectedPosition] = useState(''); // Removed per user request
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [submitting, setSubmitting] = useState(false);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'schedule' | 'crew'>('dashboard');
 
     const approvedVessel = user ? getCrewVessel(user.id) : undefined;
@@ -61,9 +62,10 @@ export default function CrewDashboard() {
 
     const handleJoin = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user) return;
+        if (!user || submitting) return;
         setError('');
         setSuccess('');
+        setSubmitting(true);
 
         // Removed position validation per user request
 
@@ -73,8 +75,10 @@ export default function CrewDashboard() {
             // No need to update position here as it comes from signup
             setSuccess(result.message);
             setJoinCode('');
+            // Leave submitting=true — the pending request UI will replace this form
         } else {
             setError(result.message);
+            setSubmitting(false);
         }
     };
 
@@ -144,7 +148,9 @@ export default function CrewDashboard() {
                                 </div>
                                 {error && <p className="text-sm text-destructive">{error}</p>}
                                 {success && <p className="text-sm text-green-600 font-medium">{success}</p>}
-                                <Button type="submit" className="w-full">Request to Join</Button>
+                                <Button type="submit" className="w-full" disabled={submitting}>
+                                    {submitting ? 'Sending...' : 'Request to Join'}
+                                </Button>
                             </form>
                         )}
                     </CardContent>
