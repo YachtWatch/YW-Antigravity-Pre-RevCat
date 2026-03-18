@@ -35,7 +35,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     await Purchases.configure({ apiKey: import.meta.env.REVENUECAT_API_KEY_GOOGLE });
                 }
 
-                await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
+                await Purchases.setLogLevel({ level: import.meta.env.DEV ? LOG_LEVEL.DEBUG : LOG_LEVEL.ERROR });
 
                 // Purchases.getCustomerInfo() returns { customerInfo: ... }
                 const { customerInfo } = await Purchases.getCustomerInfo();

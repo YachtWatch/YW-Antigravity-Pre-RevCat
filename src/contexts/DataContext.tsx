@@ -201,6 +201,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Refs to track known IDs for diffing
     const knownRequestIds = useRef<Set<string>>(new Set());
     const knownScheduleIds = useRef<Set<string>>(new Set());
+    // Debounce ref: prevents cascading full-refreshes when multiple realtime events arrive together
+    const refreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Guard ref: prevents re-scheduling watch reminders on every check-in (only re-run when schedule/prefs change)
+    const lastRemindersKeyRef = useRef<string | null>(null);
 
     const loadFromCache = () => {
         try {
@@ -475,15 +479,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         loadData();
 
+        // Debounced refresh: coalesces multiple rapid realtime events into a single fetch.
+        const scheduleRefresh = () => {
+            if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
+            refreshDebounceRef.current = setTimeout(() => refreshData(), 500);
+        };
+
         // Realtime Subscription
         const channel = supabase.channel('vital-updates')
             // Join Requests (INSERT) -> Just refresh (polling handles notification via diff)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'join_requests' }, () => {
-                refreshData();
+                scheduleRefresh();
             })
             // Join Requests (UPDATE) -> Notify Crew (Approved/Declined)
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'join_requests' }, async (payload: any) => {
-                await refreshData();
+                scheduleRefresh();
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) return;
                 const updatedRequest = payload.new;
@@ -497,11 +507,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
             })
             // Schedules (INSERT) -> Just refresh (polling handles notification)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'schedules' }, () => {
-                refreshData();
+                scheduleRefresh();
             })
             // Schedules (UPDATE) -> Notify Crew of changes
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'schedules' }, async (payload: any) => {
-                await refreshData();
+                scheduleRefresh();
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) return;
 
@@ -515,37 +525,42 @@ export function DataProvider({ children }: { children: ReactNode }) {
             })
             // Schedules (DELETE) -> Refresh to clear deleted schedule from UI
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'schedules' }, () => {
-                refreshData();
+                scheduleRefresh();
             })
             // Join Requests (DELETE) -> Refresh when request is removed (e.g., crew kicked)
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'join_requests' }, () => {
-                refreshData();
+                scheduleRefresh();
             })
             // Vessel Members (ALL) -> Refresh when someone is kicked, added, or role changes
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'vessel_members' }, () => {
-                refreshData();
+                scheduleRefresh();
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'vessel_members' }, () => {
-                refreshData();
+                scheduleRefresh();
             })
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vessel_members' }, () => {
-                refreshData();
+                scheduleRefresh();
             })
             .subscribe();
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
-                refreshData();
+                scheduleRefresh();
             }
         };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             supabase.removeChannel(channel);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current);
         };
     }, []);
 
-    // Effect to schedule local notifications for upcoming watches
+    // Effect to schedule local notifications for upcoming watches.
+    // Guarded by a key ref so it only re-runs when the schedule ID or reminder
+    // preferences actually change — not on every check-in that mutates slot data.
     useEffect(() => {
         const scheduleReminders = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -555,14 +570,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
             if (!currentUser) return;
 
             const mySchedule = schedules.find(s => s.vesselId === currentUser.vesselId);
-            if (mySchedule) {
-                await NotificationService.scheduleWatchReminders(
-                    mySchedule,
-                    currentUser.id,
-                    currentUser.reminder1 || 0,
-                    currentUser.reminder2 || 0
-                );
-            }
+            if (!mySchedule) return;
+
+            const key = `${mySchedule.id}-${currentUser.reminder1 || 0}-${currentUser.reminder2 || 0}`;
+            if (lastRemindersKeyRef.current === key) return;
+            lastRemindersKeyRef.current = key;
+
+            await NotificationService.scheduleWatchReminders(
+                mySchedule,
+                currentUser.id,
+                currentUser.reminder1 || 0,
+                currentUser.reminder2 || 0
+            );
         };
 
         scheduleReminders();

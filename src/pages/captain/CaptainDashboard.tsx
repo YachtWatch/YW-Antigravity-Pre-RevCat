@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { useData } from '../../contexts/DataContext';
@@ -11,7 +11,6 @@ import { Ship, Anchor, Clock, Users, Sailboat, CheckCircle } from 'lucide-react'
 import { generateSchedule as generateScheduleLogic } from '../../lib/scheduler';
 import { CaptainScheduleView } from './CaptainScheduleView';
 import { CaptainCrewView } from './CaptainCrewView';
-import { getCurrentSlot } from '../../lib/time-utils';
 import { useWatchLogic } from '../../hooks/useWatchLogic';
 
 const formatTime = (isoString: string) => {
@@ -33,6 +32,12 @@ export default function CaptainDashboard() {
     const [vesselCapacity, setVesselCapacity] = useState('');
 
     const vessel = user?.vesselId ? getVessel(user.vesselId) : undefined;
+
+    // O(1) user lookup — avoids nested .find() inside crew-list renders.
+    const userById = useMemo(
+        () => Object.fromEntries(users.map(u => [u.id, u])),
+        [users]
+    );
     const schedule = vessel ? getSchedule(vessel.id) : null;
 
     // Requests State
@@ -377,8 +382,6 @@ export default function CaptainDashboard() {
 
                                     {/* Global Watch Status Card (With Alert Logic) */}
                                     {(() => {
-                                        const activeSlot = schedule ? getCurrentSlot(schedule.slots) : undefined;
-
                                         return (
                                             <Card className="bg-card border-border flex flex-col justify-center">
                                                 <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -420,14 +423,14 @@ export default function CaptainDashboard() {
                                                                             <div className="flex items-center gap-3">
                                                                                 <div className="h-8 w-8 rounded-full bg-secondary border flex items-center justify-center font-bold text-sm shadow-sm">
                                                                                     {(() => {
-                                                                                        const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                                                        const u = userById[c.userId] || (user?.id === c.userId ? user : null);
                                                                                         const name = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
                                                                                         return name.charAt(0).toUpperCase();
                                                                                     })()}
                                                                                 </div>
                                                                                 <span className="font-medium text-sm">
                                                                                     {(() => {
-                                                                                        const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                                                        const u = userById[c.userId] || (user?.id === c.userId ? user : null);
                                                                                         const fname = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
                                                                                         const lname = u?.lastName?.trim() || c.userLastName?.trim() || 'Crew';
                                                                                         return `${fname} ${lname}`;
@@ -465,7 +468,7 @@ export default function CaptainDashboard() {
                                                             </div>
                                                             <div className="flex flex-col gap-2">
                                                                 {nextGlobalSlot.crew.map((c: any) => {
-                                                                    const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                                    const u = userById[c.userId] || (user?.id === c.userId ? user : null);
                                                                     const fname = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
                                                                     const lname = u?.lastName?.trim() || c.userLastName?.trim() || 'Crew';
 

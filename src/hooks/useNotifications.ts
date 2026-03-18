@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase';
 
 export function useNotifications() {
     const { user, refreshUser } = useAuth();
-    const { schedules, refreshData, getRequestsForVessel } = useData();
+    const { schedules, refreshData } = useData();
     const activeSchedule = user?.vesselId ? schedules.find(s => s.vesselId === user.vesselId) : undefined;
 
     // 1. Check Permissions on mount
@@ -82,8 +82,7 @@ export function useNotifications() {
                             'New Crew Request',
                             `A new crew member has requested to join your vessel.`
                         );
-                        // Refresh data to show badge
-                        getRequestsForVessel(user.vesselId!); // trigger fetch
+                        // refreshData already re-fetches all requests — no separate fetch needed
                         refreshData();
                     }
                 )

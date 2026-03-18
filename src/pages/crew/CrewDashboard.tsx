@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useData } from '../../contexts/DataContext';
 import { Button } from '../../components/ui/button';
@@ -46,6 +46,12 @@ export default function CrewDashboard() {
     // Robustly get all approved crew:
     // DataContext already fetches exactly the Captain + Approved Crew for this specific vessel via RLS-safe queries.
     const approvedCrew = users;
+
+    // O(1) user lookup — avoids nested .find() calls inside crew-list renders.
+    const userById = useMemo(
+        () => Object.fromEntries(users.map(u => [u.id, u])),
+        [users]
+    );
 
     // -- OPTIMIZED SLOT LOGIC --
     const {
@@ -329,7 +335,7 @@ export default function CrewDashboard() {
                                         <div className="flex flex-col gap-3">
                                             <div className="flex flex-col gap-2">
                                                 {currentGlobalSlot.crew.map((c: any) => {
-                                                    const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                    const u = userById[c.userId] || (user?.id === c.userId ? user : null);
                                                     const fname = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
                                                     const lname = u?.lastName?.trim() || c.userLastName?.trim() || 'Crew';
                                                     return (
@@ -356,7 +362,7 @@ export default function CrewDashboard() {
                                             </div>
                                             <div className="flex flex-col gap-2">
                                                 {nextGlobalSlot.crew.map((c: any) => {
-                                                    const u = users.find(u => u.id === c.userId) || (user?.id === c.userId ? user : null);
+                                                    const u = userById[c.userId] || (user?.id === c.userId ? user : null);
                                                     const fname = u?.firstName?.trim() || c.userFirstName?.trim() || 'Unknown';
                                                     const lname = u?.lastName?.trim() || c.userLastName?.trim() || 'Crew';
                                                     return (

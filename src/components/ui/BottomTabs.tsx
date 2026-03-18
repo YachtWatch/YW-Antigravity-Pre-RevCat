@@ -6,12 +6,14 @@ interface BottomTabsProps {
     onTabChange: (tab: 'dashboard' | 'schedule' | 'crew') => void;
 }
 
+const TABS = [
+    { id: 'dashboard' as const, label: 'Dashboard', icon: Home },
+    { id: 'schedule' as const, label: 'Schedule', icon: Calendar },
+    { id: 'crew' as const, label: 'Crew', icon: Users },
+];
+
 export function BottomTabs({ activeTab, onTabChange }: BottomTabsProps) {
-    const tabs = [
-        { id: 'dashboard' as const, label: 'Dashboard', icon: Home },
-        { id: 'schedule' as const, label: 'Schedule', icon: Calendar },
-        { id: 'crew' as const, label: 'Crew', icon: Users },
-    ];
+    const tabs = TABS;
 
     return (
         <nav className="fixed bottom-0 left-0 right-0 bg-card border-t z-[100] safe-area-pb shadow-[0_-1px_3px_rgba(0,0,0,0.1)]">
