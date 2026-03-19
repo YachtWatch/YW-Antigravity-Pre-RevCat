@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { ThemeProvider } from './components/theme-provider';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DataProvider } from './contexts/DataContext';
@@ -124,6 +125,7 @@ function App() {
                                     </Suspense>
                                 </BrowserRouter>
                             </div>
+                            <SpeedInsights />
                         </SubscriptionProvider>
                     </AuthProvider>
                 </DataProvider>
