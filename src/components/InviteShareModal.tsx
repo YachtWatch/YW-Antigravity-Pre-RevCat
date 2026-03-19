@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Copy, Check } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import whatsappLogo from '../../assets/whatsapp-logo.png';
@@ -12,6 +13,7 @@ interface InviteShareModalProps {
 }
 
 const APP_LINK = 'https://yachtwatch.app';
+const isWeb = !Capacitor.isNativePlatform();
 
 export function InviteShareModal({ isOpen, onClose, joinCode }: InviteShareModalProps) {
     const [copied, setCopied] = useState(false);
@@ -45,7 +47,6 @@ export function InviteShareModal({ isOpen, onClose, joinCode }: InviteShareModal
                 // User cancelled or share failed — no action needed
             }
         } else {
-            // Fallback: copy to clipboard on platforms without Web Share API
             await handleCopy();
         }
     };
@@ -57,94 +58,127 @@ export function InviteShareModal({ isOpen, onClose, joinCode }: InviteShareModal
         const onBlur = () => { appOpened = true; };
         window.addEventListener('blur', onBlur);
 
-        // Attempt to open the WhatsApp app via URL scheme
         window.location.href = waScheme;
 
         setTimeout(() => {
             window.removeEventListener('blur', onBlur);
             if (!appOpened) {
-                // WhatsApp not installed — fall back to native share sheet
                 handleNativeShare();
             }
         }, 1500);
     };
 
+    // ── Shared inner content ───────────────────────────────────────────────────
+    const content = (
+        <>
+            <div className="flex items-start justify-between mb-6">
+                <div>
+                    <h2 className="text-xl font-bold text-[#1B2A6B]">Invite your crew</h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                        Share YachtWatch with your crew members
+                    </p>
+                </div>
+                <button
+                    onClick={onClose}
+                    aria-label="Close"
+                    className="h-8 w-8 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors shrink-0 mt-0.5 ml-4"
+                >
+                    <X className="h-4 w-4" />
+                </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+                <Button
+                    variant="outline"
+                    className="w-full h-12 gap-3 justify-start border-[#1B2A6B] text-[#1B2A6B] hover:bg-[#1B2A6B]/5 font-semibold text-sm"
+                    onClick={handleCopy}
+                >
+                    {copied ? (
+                        <>
+                            <Check className="h-4 w-4 shrink-0" />
+                            ✓ Copied!
+                        </>
+                    ) : (
+                        <>
+                            <Copy className="h-4 w-4 shrink-0" />
+                            Copy Invite Link
+                        </>
+                    )}
+                </Button>
+
+                <Button
+                    variant="outline"
+                    className="w-full h-12 gap-3 justify-start border-[#1B2A6B] text-[#1B2A6B] hover:bg-[#1B2A6B]/5 font-semibold text-sm"
+                    onClick={handleWhatsApp}
+                >
+                    <img src={whatsappLogo} alt="WhatsApp" className="h-5 w-5 shrink-0" style={{ imageRendering: 'auto' }} />
+                    Share via WhatsApp
+                </Button>
+            </div>
+        </>
+    );
+
+    // ── Web: inline-positioned floating dialog ─────────────────────────────────
+    if (isWeb) {
+        return (
+            <>
+                {/* Full-screen overlay */}
+                <div
+                    onClick={onClose}
+                    style={{
+                        position: 'fixed', top: 0, left: 0,
+                        width: '100vw', height: '100vh',
+                        background: 'rgba(0, 0, 0, 0.4)',
+                        zIndex: 999,
+                        opacity: isOpen ? 1 : 0,
+                        pointerEvents: isOpen ? 'auto' : 'none',
+                        transition: 'opacity 200ms ease',
+                    }}
+                />
+                {/* Centered dialog */}
+                <div
+                    aria-modal="true"
+                    role="dialog"
+                    style={{
+                        position: 'fixed', top: '50%', left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: 420, maxWidth: '90vw',
+                        borderRadius: 16, background: 'red',
+                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
+                        padding: 32, zIndex: 1000,
+                        opacity: isOpen ? 1 : 0,
+                        pointerEvents: isOpen ? 'auto' : 'none',
+                        transition: 'opacity 200ms ease',
+                    }}
+                >
+                    {content}
+                </div>
+            </>
+        );
+    }
+
+    // ── Native (iOS / Android): safe-area-aware centered dialog ───────────────
     return (
-        // Keep mounted so the slide-out animation plays on close.
         <div
             aria-modal="true"
             role="dialog"
             className={cn(
-                // z-[90] keeps this below the tab bar (z-[100]) so the tab bar
-                // renders naturally on top — no gap, no CSS calc needed.
-                'fixed inset-0 z-[90] transition-opacity duration-300',
+                'fixed inset-0 z-[90] flex items-center justify-center',
+                'transition-opacity duration-200',
                 isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
             )}
+            style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
-            {/* Dimmed overlay */}
-            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-
-            {/* Bottom sheet — extends to screen bottom; tab bar covers the bottom strip */}
+            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
             <div
                 className={cn(
-                    'absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out',
-                    isOpen ? 'translate-y-0' : 'translate-y-full'
+                    'relative z-10 bg-white rounded-2xl shadow-2xl',
+                    'w-[85vw] max-w-[420px] p-8',
+                    'transition-all duration-200',
+                    isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
                 )}
             >
-                {/* Drag handle */}
-                <div className="flex justify-center pt-3 pb-1">
-                    <div className="w-10 h-1 rounded-full bg-muted-foreground/25" />
-                </div>
-
-                {/* Content — padding clears the tab bar (64px) + safe area + 8px gap */}
-                <div className="px-6" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 76px)' }}>
-                    {/* Header */}
-                    <div className="flex items-start justify-between pt-4 pb-6">
-                        <div>
-                            <h2 className="text-xl font-bold text-[#1B2A6B]">Invite your crew</h2>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                Share YachtWatch with your crew members
-                            </p>
-                        </div>
-                        <button
-                            onClick={onClose}
-                            aria-label="Close"
-                            className="h-8 w-8 rounded-full bg-muted/60 flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors shrink-0 mt-0.5"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex flex-col gap-3">
-                        <Button
-                            variant="outline"
-                            className="w-full h-12 gap-3 justify-start border-[#1B2A6B] text-[#1B2A6B] hover:bg-[#1B2A6B]/5 font-semibold text-sm"
-                            onClick={handleCopy}
-                        >
-                            {copied ? (
-                                <>
-                                    <Check className="h-4 w-4 shrink-0" />
-                                    ✓ Copied!
-                                </>
-                            ) : (
-                                <>
-                                    <Copy className="h-4 w-4 shrink-0" />
-                                    Copy Invite Link
-                                </>
-                            )}
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            className="w-full h-12 gap-3 justify-start border-[#1B2A6B] text-[#1B2A6B] hover:bg-[#1B2A6B]/5 font-semibold text-sm"
-                            onClick={handleWhatsApp}
-                        >
-                            <img src={whatsappLogo} alt="WhatsApp" className="h-5 w-5 shrink-0" style={{ imageRendering: 'auto' }} />
-                            Share via WhatsApp
-                        </Button>
-                    </div>
-                </div>
+                {content}
             </div>
         </div>
     );

@@ -36,10 +36,14 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
     const [isDownloading, setIsDownloading] = useState(false);
 
     const handleShare = async () => {
-        if (!schedule) return;
+        console.log('1. Download button tapped');
+        if (!schedule) {
+            console.warn('Download aborted: schedule is null/undefined');
+            return;
+        }
         setIsDownloading(true);
         try {
-            await PrintService.sharePDF({
+            const options = {
                 fileName:     `${(schedule.name || 'WatchSchedule').replace(/[^a-zA-Z0-9 ]/g, '')}.pdf`,
                 scheduleName: schedule.name || 'Watch Schedule',
                 watchType:    schedule.watchType,
@@ -54,9 +58,16 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
                         lastName:  c.lastName  || '',
                     })),
                 })),
+            };
+            console.log('2. Starting PDF generation...', {
+                fileName: options.fileName,
+                slotCount: options.slots.length,
+                vesselName: options.vesselName,
             });
+            await PrintService.sharePDF(options);
+            console.log('5. Share sheet presented successfully');
         } catch (err) {
-            console.error('Share PDF failed:', err);
+            console.error('Download failed at:', err);
         } finally {
             setIsDownloading(false);
         }

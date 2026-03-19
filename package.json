@@ -11,8 +11,10 @@
     },
     "dependencies": {
         "@capacitor/android": "^8.1.0",
+        "@capacitor/filesystem": "^8.1.2",
         "@capacitor/ios": "^8.1.0",
         "@capacitor/local-notifications": "^8.0.0",
+        "@capacitor/share": "^8.0.1",
         "@capacitor/splash-screen": "^8.0.0",
         "@capacitor/status-bar": "^8.0.0",
         "@radix-ui/react-slot": "^1.2.4",
@@ -23,6 +25,7 @@
         "dotenv": "^17.2.3",
         "html2canvas": "^1.4.1",
         "jspdf": "^4.1.0",
+        "jspdf-autotable": "^5.0.7",
         "lucide-react": "^0.309.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",

@@ -30,7 +30,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
             try {
                 if (Capacitor.getPlatform() === 'ios') {
-                    await Purchases.configure({ apiKey: import.meta.env.REVENUECAT_API_KEY_APPLE });
+                    await Purchases.configure({ apiKey: 'appl_TxXCVVHhofCaDGcrSSspCfRbEGF' });
                 } else if (Capacitor.getPlatform() === 'android') {
                     await Purchases.configure({ apiKey: import.meta.env.REVENUECAT_API_KEY_GOOGLE });
                 }

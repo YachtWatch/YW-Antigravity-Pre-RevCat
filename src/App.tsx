@@ -58,9 +58,6 @@ function RootRedirect() {
 function App() {
     useEffect(() => {
         if (Capacitor.isNativePlatform()) {
-            // Hide the splash screen when the app is mounted
-            SplashScreen.hide();
-
             // Set a consistent status bar style
             StatusBar.setStyle({ style: Style.Dark });
 
@@ -68,6 +65,10 @@ function App() {
                 StatusBar.setOverlaysWebView({ overlay: true });
                 document.body.classList.add('platform-ios');
             }
+
+            // Hold the splash for 1 second then reveal the sailboat loader
+            const t = setTimeout(() => SplashScreen.hide(), 1000);
+            return () => clearTimeout(t);
         }
     }, []);
 

@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import RevenueCat
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        Purchases.configure(withAPIKey: "appl_TxXCVVHhofCaDGcrSSspCfRbEGF")
+        // Paint the window navy immediately so there is no black frame
+        // between the OS LaunchScreen dismissal and the Capacitor splash.
+        window?.backgroundColor = UIColor(red: 27/255, green: 42/255, blue: 107/255, alpha: 1)
         return true
     }
 
