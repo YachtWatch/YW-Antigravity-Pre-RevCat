@@ -143,7 +143,7 @@ export function InviteShareModal({ isOpen, onClose, joinCode }: InviteShareModal
                         position: 'fixed', top: '50%', left: '50%',
                         transform: 'translate(-50%, -50%)',
                         width: 420, maxWidth: '90vw',
-                        borderRadius: 16, background: 'red',
+                        borderRadius: 16, background: 'white',
                         boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15)',
                         padding: 32, zIndex: 1000,
                         opacity: isOpen ? 1 : 0,
