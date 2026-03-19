@@ -4,30 +4,25 @@ import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import whatsappLogo from '../../assets/whatsapp-logo.png';
 
-interface InviteShareModalProps {
+interface SpreadTheWordModalProps {
     isOpen: boolean;
     onClose: () => void;
-    /** The vessel join code. Include it for captains; omit for crew-only share. */
-    joinCode?: string | null;
 }
 
 const APP_LINK = 'https://yachtwatch.app';
 
-export function InviteShareModal({ isOpen, onClose, joinCode }: InviteShareModalProps) {
+const WHATSAPP_MESSAGE =
+    `Hey! I've been using YachtWatch to manage watches and crew onboard — it's a game changer 🛥️ Check it out: ${APP_LINK}`;
+
+export function SpreadTheWordModal({ isOpen, onClose }: SpreadTheWordModalProps) {
     const [copied, setCopied] = useState(false);
-
-    const inviteLink = joinCode ? `${APP_LINK}/join/${joinCode}` : APP_LINK;
-
-    const shareMessage = joinCode
-        ? `Hey! Join me on YachtWatch 🛥️ Use code ${joinCode} to join. Download here: ${inviteLink}`
-        : `Hey! I'm using YachtWatch to manage our watch schedule 🛥️ Download here: ${APP_LINK}`;
 
     const handleCopy = async () => {
         try {
-            await navigator.clipboard.writeText(inviteLink);
+            await navigator.clipboard.writeText(APP_LINK);
         } catch {
             const el = document.createElement('textarea');
-            el.value = inviteLink;
+            el.value = APP_LINK;
             document.body.appendChild(el);
             el.select();
             document.execCommand('copy');
@@ -40,37 +35,33 @@ export function InviteShareModal({ isOpen, onClose, joinCode }: InviteShareModal
     const handleNativeShare = async () => {
         if (navigator.share) {
             try {
-                await navigator.share({ text: shareMessage });
+                await navigator.share({ text: WHATSAPP_MESSAGE });
             } catch {
-                // User cancelled or share failed — no action needed
+                // User cancelled — no action needed
             }
         } else {
-            // Fallback: copy to clipboard on platforms without Web Share API
             await handleCopy();
         }
     };
 
     const handleWhatsApp = () => {
-        const waScheme = `whatsapp://send?text=${encodeURIComponent(shareMessage)}`;
+        const waScheme = `whatsapp://send?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
         let appOpened = false;
 
         const onBlur = () => { appOpened = true; };
         window.addEventListener('blur', onBlur);
 
-        // Attempt to open the WhatsApp app via URL scheme
         window.location.href = waScheme;
 
         setTimeout(() => {
             window.removeEventListener('blur', onBlur);
             if (!appOpened) {
-                // WhatsApp not installed — fall back to native share sheet
                 handleNativeShare();
             }
         }, 1500);
     };
 
     return (
-        // Keep mounted so the slide-out animation plays on close.
         <div
             aria-modal="true"
             role="dialog"
@@ -101,9 +92,9 @@ export function InviteShareModal({ isOpen, onClose, joinCode }: InviteShareModal
                     {/* Header */}
                     <div className="flex items-start justify-between pt-4 pb-6">
                         <div>
-                            <h2 className="text-xl font-bold text-[#1B2A6B]">Invite your crew</h2>
+                            <h2 className="text-xl font-bold text-[#1B2A6B]">Spread the word</h2>
                             <p className="text-sm text-muted-foreground mt-1">
-                                Share YachtWatch with your crew members
+                                Know someone who'd love YachtWatch?
                             </p>
                         </div>
                         <button

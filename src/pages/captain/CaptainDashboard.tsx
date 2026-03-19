@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { SailboatLoader } from '../../components/SailboatLoader';
 import { useData } from '../../contexts/DataContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -142,7 +142,7 @@ export default function CaptainDashboard() {
     if (loading || authLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
-                <Loader2 className="animate-spin h-8 w-8 text-primary" />
+                <SailboatLoader />
             </div>
         );
     }

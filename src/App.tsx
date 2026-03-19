@@ -12,6 +12,7 @@ import { SubscriptionProvider } from './context/SubscriptionContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { OfflineBanner } from './components/OfflineBanner';
 
+import { SailboatLoader } from './components/SailboatLoader';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/auth/LoginPage';
 import DashboardIndex from './pages/DashboardIndex';
@@ -24,6 +25,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const CompleteProfilePage = lazy(() => import('./pages/CompleteProfilePage'));
 const ScheduleGeneratorWizard = lazy(() => import('./pages/captain/ScheduleGeneratorWizard'));
+const CrewExportWizard = lazy(() => import('./pages/captain/CrewExportWizard'));
 const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage'));
 const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
@@ -36,7 +38,7 @@ function RootRedirect() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <SailboatLoader />
             </div>
         );
     }
@@ -79,7 +81,7 @@ function App() {
                             <div className="min-h-screen bg-background text-foreground font-sans antialiased">
                                 <BrowserRouter>
                                     <OfflineBanner />
-                                    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+                                    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><SailboatLoader /></div>}>
                                         <Routes>
                                             <Route path="/" element={<RootRedirect />} />
 
@@ -109,6 +111,7 @@ function App() {
                                             <Route element={<ProtectedRoute allowedRoles={['captain']} />}>
                                                 <Route path="/dashboard/captain" element={<CaptainDashboard />} />
                                                 <Route path="/dashboard/captain/generate-schedule" element={<ScheduleGeneratorWizard />} />
+                                                <Route path="/dashboard/captain/export-crew" element={<CrewExportWizard />} />
                                             </Route>
 
                                             <Route element={<ProtectedRoute allowedRoles={['crew']} />}>

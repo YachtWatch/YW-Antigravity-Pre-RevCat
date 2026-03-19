@@ -218,7 +218,7 @@ export default function ScheduleGeneratorWizard() {
     return (
         <div className="min-h-screen bg-background flex flex-col">
             {/* Header */}
-            <div className="p-4 border-b flex items-center gap-4 bg-card z-10 sticky top-0">
+            <div className="p-4 border-b flex items-center gap-4 bg-card z-10 sticky top-0 safe-area-pt">
                 <Button variant="ghost" size="sm" className="gap-1 pl-2 text-muted-foreground" onClick={() => {
                     if (step === 1) navigate(-1);
                     else setStep(step - 1);

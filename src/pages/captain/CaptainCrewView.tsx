@@ -1,9 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
 import { UserData, Vessel } from '../../contexts/DataContext';
 import { X, Check, Printer, RefreshCw, Anchor, Compass, Coffee, Wrench, Users, Star, PenLine, Trash2, UserPlus } from 'lucide-react';
-import { CrewListPrintView } from '../../components/CrewListPrintView';
 import { InviteShareModal } from '../../components/InviteShareModal';
 
 
@@ -44,7 +44,7 @@ const getDepartment = (role: string) => {
 };
 
 export function CaptainCrewView({ vessel, schedule, captainName, pendingRequests, users, onEditRole, onRemoveCrew, onRequestAction, onRefresh }: CaptainCrewViewProps) {
-    const [showPrintView, setShowPrintView] = useState(false);
+    const navigate = useNavigate();
     const [showInvite, setShowInvite] = useState(false);
     // Ensure captain is properly represented if missing from users array
     const captainUser = users.find(u => u.id === vessel.captainId) || {
@@ -72,41 +72,13 @@ export function CaptainCrewView({ vessel, schedule, captainName, pendingRequests
 
     const crewOnWatchIds = currentGlobalSlot?.crew.map((c: any) => c.userId) || [];
 
-    const handlePrint = () => {
-        window.print();
-    };
-
     return (
         <div className="space-y-8">
-            {/* Print Overlay */}
-            {showPrintView && (
-                <div className="fixed inset-0 z-50 bg-white overflow-auto flex flex-col print:absolute print:inset-0 print:h-auto print:overflow-visible print:block">
-                    <div className="p-4 border-b flex justify-between items-center bg-gray-50 print:hidden">
-                        <div className="font-bold">Print Preview</div>
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => setShowPrintView(false)}>Close</Button>
-                            <Button onClick={handlePrint} className="gap-2">
-                                <Printer className="h-4 w-4" />
-                                Print / Save as PDF
-                            </Button>
-                        </div>
-                    </div>
-                    <div className="flex-1 bg-gray-100 p-8 print:p-0 print:bg-white overflow-y-auto">
-                        <div className="bg-white shadow-lg mx-auto print:shadow-none print:mx-0">
-                            <CrewListPrintView
-                                vessel={vessel}
-                                crew={finalCrewList}
-                                captainName={captainName}
-                            />
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Join Code Card */}
             <Card className="bg-primary/5 border-primary/20 print:hidden">
                 <CardContent className="p-6 space-y-4">
-                    <div className="space-y-1">
+                    <div className="space-y-1 text-center">
                         <h3 className="font-semibold text-foreground">Vessel Join Code</h3>
                         <p className="text-sm text-muted-foreground">Share this code with your crew to let them join.</p>
                     </div>
@@ -122,11 +94,11 @@ export function CaptainCrewView({ vessel, schedule, captainName, pendingRequests
                     </div>
                     <Button
                         variant="outline"
-                        className="w-full gap-2 border-[#1B2A6B] text-[#1B2A6B] hover:bg-[#1B2A6B]/5 font-semibold"
+                        className="w-full gap-2 border-[rgba(27,42,107,0.25)] text-[#1B2A6B] hover:bg-[#1B2A6B]/5 font-semibold"
                         onClick={() => setShowInvite(true)}
                     >
                         <UserPlus className="h-4 w-4 shrink-0" />
-                        Invite Crew to YachtWatch
+                        Invite Crew
                     </Button>
                 </CardContent>
             </Card>
@@ -177,7 +149,7 @@ export function CaptainCrewView({ vessel, schedule, captainName, pendingRequests
             <div className="print:hidden">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold">Active Crew ({finalCrewList.length})</h3>
-                    <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowPrintView(true)}>
+                    <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/dashboard/captain/export-crew')}>
                         <Printer className="h-3 w-3" />
                         Export Crew List
                     </Button>

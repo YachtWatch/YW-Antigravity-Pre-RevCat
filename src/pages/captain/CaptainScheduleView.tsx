@@ -1,16 +1,14 @@
 import { useNavigate } from 'react-router-dom';
-import { useState, useRef, memo } from 'react';
+import { useState, memo } from 'react';
 import { Button } from '../../components/ui/button';
 import { Switch } from '../../components/ui/switch';
 import { Card } from '../../components/ui/card';
 import { Clock, Users, Download } from 'lucide-react';
+import { PrintService } from '../../services/PrintService';
 import { WatchSchedule, JoinRequest } from '../../contexts/DataContext';
 import { ScheduleMatrixView } from '../../components/ScheduleMatrixView';
 import { useAuth } from '../../contexts/AuthContext';
-import { cn } from '../../lib/utils';
 import { NoScheduleState } from '../../components/NoScheduleState';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 
 interface CaptainScheduleViewProps {
@@ -25,8 +23,8 @@ interface CaptainScheduleViewProps {
 
 export const CaptainScheduleView = memo(function CaptainScheduleView({
     schedule,
+    vessel,
     // approvedCrew, // Unused while modal is disabled
-    // vessel,
     // onUpdateScheduleSettings,
     // onUpdateSlot, // Unused while modal is disabled
     onClearSchedule
@@ -36,88 +34,30 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showMyWatches, setShowMyWatches] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
-    const [printMode, setPrintMode] = useState(false);
-    const scheduleRef = useRef<HTMLDivElement>(null);
 
-    const handleDownloadPDF = async () => {
-        if (!scheduleRef.current || !schedule) return;
+    const handleShare = async () => {
+        if (!schedule) return;
         setIsDownloading(true);
-        setPrintMode(true);
-
-        // Wait for render to update with printMode=true (expanded slots)
-        await new Promise(resolve => setTimeout(resolve, 500));
-
         try {
-            const pdf = new jsPDF({
-                orientation: 'landscape',
-                unit: 'mm',
-                format: 'a4'
+            await PrintService.sharePDF({
+                fileName:     `${(schedule.name || 'WatchSchedule').replace(/[^a-zA-Z0-9 ]/g, '')}.pdf`,
+                scheduleName: schedule.name || 'Watch Schedule',
+                watchType:    schedule.watchType,
+                crewPerWatch: schedule.crewPerWatch || 0,
+                vesselName:   vessel?.name || 'Vessel',
+                vesselType:   vessel?.type || 'sail',
+                slots: schedule.slots.map((s: any) => ({
+                    start: s.start,
+                    end:   s.end,
+                    crew:  s.crew.map((c: any) => ({
+                        firstName: c.firstName || '',
+                        lastName:  c.lastName  || '',
+                    })),
+                })),
             });
-
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            // const pdfHeight = pdf.internal.pageSize.getHeight(); // Unused
-
-            // 0. Capture Meta Card (Title, Duration, Crew)
-            const metaEl = scheduleRef.current.querySelector('.schedule-meta-card') as HTMLElement;
-            let metaHeightOnPdf = 0;
-            let metaImgData = '';
-
-            if (metaEl) {
-                const metaCanvas = await html2canvas(metaEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff' } as any);
-                metaImgData = metaCanvas.toDataURL('image/png');
-                const metaAspectRatio = metaCanvas.height / metaCanvas.width;
-                metaHeightOnPdf = pdfWidth * metaAspectRatio;
-            }
-
-            // 1. Capture Header
-            const headerEl = scheduleRef.current.querySelector('.schedule-header-row') as HTMLElement;
-            let headerHeightOnPdf = 0;
-            let headerImgData = '';
-
-            if (headerEl) {
-                const headerCanvas = await html2canvas(headerEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff' } as any);
-                headerImgData = headerCanvas.toDataURL('image/png');
-                const headerAspectRatio = headerCanvas.height / headerCanvas.width;
-                headerHeightOnPdf = pdfWidth * headerAspectRatio;
-            }
-
-            // 2. Capture Each Day
-            const dayElements = Array.from(scheduleRef.current.querySelectorAll('.schedule-day-group')) as HTMLElement[];
-
-            for (let i = 0; i < dayElements.length; i++) {
-                const dayEl = dayElements[i];
-                if (i > 0) pdf.addPage();
-
-                let currentY = 0;
-
-                // Add Meta (Title/Stats) to each page
-                if (metaImgData) {
-                    pdf.addImage(metaImgData, 'PNG', 0, currentY, pdfWidth, metaHeightOnPdf);
-                    currentY += metaHeightOnPdf;
-                }
-
-                // Add Column Headers to each page
-                if (headerImgData) {
-                    // Add a small gap or overlap fix if needed
-                    pdf.addImage(headerImgData, 'PNG', 0, currentY, pdfWidth, headerHeightOnPdf);
-                    currentY += headerHeightOnPdf;
-                }
-
-                const dayCanvas = await html2canvas(dayEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff' } as any);
-                const dayImgData = dayCanvas.toDataURL('image/png');
-                const dayAspectRatio = dayCanvas.height / dayCanvas.width;
-                const dayHeightOnPdf = pdfWidth * dayAspectRatio;
-
-                pdf.addImage(dayImgData, 'PNG', 0, currentY, pdfWidth, dayHeightOnPdf);
-            }
-
-            pdf.save(`WatchSchedule_${schedule.name.replace(/\s+/g, '_')}.pdf`);
-
-        } catch (error) {
-            console.error("Failed to generate PDF", error);
-            alert("Failed to generate PDF");
+        } catch (err) {
+            console.error('Share PDF failed:', err);
         } finally {
-            setPrintMode(false);
             setIsDownloading(false);
         }
     };
@@ -180,7 +120,7 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
                 </div>
             )}
 
-            <div ref={scheduleRef} className="bg-background space-y-6">
+            <div className="bg-background space-y-6">
                 <Card className="schedule-meta-card p-5 shadow-sm bg-card text-card-foreground border dark:bg-[#1a1f2e] dark:text-white dark:border-none">
                     <div className="flex flex-col gap-4">
                         <div className="flex justify-between items-start">
@@ -204,7 +144,7 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
                             </div>
 
                             {/* Right: Actions */}
-                            <div className={cn("flex items-center gap-2", printMode && "opacity-0 pointer-events-none absolute right-0 top-0")}>
+                            <div className="flex items-center gap-2">
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -229,8 +169,8 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
                                     size="icon"
                                     disabled={isDownloading}
                                     className="h-8 w-8 text-muted-foreground"
-                                    onClick={handleDownloadPDF}
-                                    title="Download PDF"
+                                    onClick={handleShare}
+                                    title="Share / Save PDF"
                                 >
                                     <Download className="h-4 w-4" />
                                 </Button>
@@ -266,20 +206,18 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
                         </div>
 
                         {/* Row 3: Toggle */}
-                        {!printMode && (
-                            <div>
-                                <div className="inline-flex items-center gap-3 px-1.5 pr-4 py-1.5 rounded-full border bg-background hover:bg-accent/50 transition-colors cursor-pointer w-auto" onClick={() => setShowMyWatches(!showMyWatches)}>
-                                    <Switch
-                                        checked={showMyWatches}
-                                        onCheckedChange={setShowMyWatches}
-                                        className="scale-90 data-[state=checked]:bg-primary"
-                                    />
-                                    <span className="text-sm text-muted-foreground font-medium select-none">
-                                        My Watch Only
-                                    </span>
-                                </div>
+                        <div>
+                            <div className="inline-flex items-center gap-3 px-1.5 pr-4 py-1.5 rounded-full border bg-background hover:bg-accent/50 transition-colors cursor-pointer w-auto" onClick={() => setShowMyWatches(!showMyWatches)}>
+                                <Switch
+                                    checked={showMyWatches}
+                                    onCheckedChange={setShowMyWatches}
+                                    className="scale-90 data-[state=checked]:bg-primary"
+                                />
+                                <span className="text-sm text-muted-foreground font-medium select-none">
+                                    My Watch Only
+                                </span>
                             </div>
-                        )}
+                        </div>
                     </div>
                 </Card>
 
@@ -288,7 +226,6 @@ export const CaptainScheduleView = memo(function CaptainScheduleView({
                         schedule={schedule}
                         currentUserId={user?.id}
                         showOnlyUserId={showMyWatches ? user?.id : undefined}
-                        printMode={printMode}
                     />
                 </div>
             </div >

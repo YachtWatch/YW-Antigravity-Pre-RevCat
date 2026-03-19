@@ -6,7 +6,8 @@ import { Input } from '../../components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { BottomTabs } from '../../components/ui/BottomTabs';
 import { ProfileDropdown } from '../../components/ui/ProfileDropdown';
-import { Anchor, Clock, Ship, Loader2, CheckCircle, Sailboat, Users } from 'lucide-react';
+import { Anchor, Clock, Ship, CheckCircle, Sailboat, Users } from 'lucide-react';
+import { SailboatLoader } from '../../components/SailboatLoader';
 import { CrewScheduleView } from './CrewScheduleView';
 import { CrewListView } from './CrewListView';
 import { useWatchLogic } from '../../hooks/useWatchLogic';
@@ -99,7 +100,7 @@ export default function CrewDashboard() {
     if (loading && (!initialLoadComplete || !activeVessel)) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
-                <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                <SailboatLoader />
             </div>
         );
     }
@@ -116,7 +117,7 @@ export default function CrewDashboard() {
                         {pendingRequest ? (
                             <div className="text-center space-y-4 py-4">
                                 <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                                    <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                                    <SailboatLoader compact />
                                 </div>
                                 <div>
                                     <h3 className="font-semibold text-lg">Request Sent</h3>

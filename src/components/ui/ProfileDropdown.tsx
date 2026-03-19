@@ -1,21 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { useData } from '../../contexts/DataContext';
 import { LogOut, Settings, User, Menu, Share2 } from 'lucide-react';
-import { InviteShareModal } from '../InviteShareModal';
+import { SpreadTheWordModal } from '../SpreadTheWordModal';
 
 
 export function ProfileDropdown() {
     const { user, logout } = useAuth();
-    const { getVessel } = useData();
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [showInvite, setShowInvite] = useState(false);
-
-    const vessel = user?.vesselId ? getVessel(user.vesselId) : null;
-    // Only surface the join code for captains — crew share the app link only.
-    const joinCode = user?.role === 'captain' ? vessel?.joinCode : null;
 
     const handleLogout = () => {
         logout();
@@ -88,10 +82,9 @@ export function ProfileDropdown() {
             </div>
 
             {/* Rendered outside the relative container so it isn't clipped */}
-            <InviteShareModal
+            <SpreadTheWordModal
                 isOpen={showInvite}
                 onClose={() => setShowInvite(false)}
-                joinCode={joinCode}
             />
         </>
     );
