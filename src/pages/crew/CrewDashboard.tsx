@@ -29,7 +29,7 @@ const formatTime = (isoString: string) => {
 
 
 export default function CrewDashboard() {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const { requestJoin, getCrewVessel, getPendingRequest, getVessel, getSchedule, checkInToWatch, users, refreshData, loading, initialLoadComplete } = useData();
     const [joinCode, setJoinCode] = useState('');
     // const [selectedPosition, setSelectedPosition] = useState(''); // Removed per user request
@@ -162,6 +162,16 @@ export default function CrewDashboard() {
                         )}
                     </CardContent>
                 </Card>
+                <div className="mt-6 text-center">
+                    <p style={{ fontSize: '13px', color: '#9CA3AF' }} className="mb-1">Wrong account?</p>
+                    <button
+                        onClick={logout}
+                        style={{ color: '#6B7280', fontSize: '13px', minHeight: '44px' }}
+                        className="bg-transparent border-none cursor-pointer px-4"
+                    >
+                        Sign out
+                    </button>
+                </div>
             </div>
         );
     }
