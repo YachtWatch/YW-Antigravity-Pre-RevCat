@@ -7,10 +7,6 @@
   padding-top: env(safe-area-inset-top, 0);
 }
 
-/* Force minimum padding for iOS using the class we added */
-body.platform-ios .safe-area-pt {
-  padding-top: max(env(safe-area-inset-top, 0px), 50px) !important;
-}
 
 html,
 body {

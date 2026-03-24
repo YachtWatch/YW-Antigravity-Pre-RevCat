@@ -16,7 +16,7 @@ export function BottomTabs({ activeTab, onTabChange }: BottomTabsProps) {
     const tabs = TABS;
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-card border-t z-[100] safe-area-pb shadow-[0_-1px_3px_rgba(0,0,0,0.1)]">
+        <nav className="fixed bottom-0 left-0 right-0 bg-card border-t z-[100] shadow-[0_-1px_3px_rgba(0,0,0,0.1)]">
             <div className="flex justify-around items-center h-16">
                 {tabs.map(tab => {
                     const Icon = tab.icon;
