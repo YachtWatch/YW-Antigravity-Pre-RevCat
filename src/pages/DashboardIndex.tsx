@@ -18,7 +18,7 @@ export default function DashboardIndex() {
         requestNotifs();
     }, []);
 
-    if (loading) {
+    if (loading && !user) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
                 <SailboatLoader />

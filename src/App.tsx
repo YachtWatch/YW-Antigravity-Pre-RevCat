@@ -34,8 +34,8 @@ const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
 function RootRedirect() {
     const { user, loading } = useAuth();
 
-    // While checking auth status
-    if (loading) {
+    // While checking auth status (only block if we have no user yet)
+    if (loading && !user) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
                 <SailboatLoader />

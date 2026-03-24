@@ -10,7 +10,7 @@ export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     const { user, isAuthenticated, loading } = useAuth();
     const location = useLocation();
 
-    if (loading) {
+    if (loading && !user) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
                 <SailboatLoader />
