@@ -7,7 +7,7 @@ export default function PrivacyPolicyPage() {
     return (
         <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="border-b border-border/40 bg-background/80 backdrop-blur-md sticky top-0 z-50 safe-area-pt">
+            <header className="border-b bg-card sticky top-0 z-50 safe-area-pt">
                 <div className="container mx-auto px-4 h-16 flex items-center gap-4 max-w-3xl">
                     <button
                         onClick={() => navigate(-1)}

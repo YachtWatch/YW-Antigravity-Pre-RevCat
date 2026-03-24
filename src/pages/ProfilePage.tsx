@@ -55,7 +55,7 @@ export default function ProfilePage() {
     return (
         <div className="min-h-screen bg-background">
             <header className="border-b bg-card sticky top-0 z-50 safe-area-pt">
-                <div className="container mx-auto px-4 h-14 flex items-center gap-4">
+                <div className="container mx-auto px-4 h-16 flex items-center gap-4">
                     <button
                         onClick={() => {
                             if (window.history.length > 2) {

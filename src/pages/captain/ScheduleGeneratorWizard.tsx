@@ -1,17 +1,53 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useData, UserData } from '../../contexts/DataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { ScheduleMatrixView } from '../../components/ScheduleMatrixView';
-import { ArrowLeft, Calendar as CalendarIcon } from 'lucide-react';
+import { ArrowLeft, Anchor, Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { ProfileDropdown } from '../../components/ui/ProfileDropdown';
 import { cn } from '../../lib/utils';
 import { WatchSchedule } from '../../contexts/DataContext';
 import { supabase } from '../../lib/supabase';
 import { Switch } from '../../components/ui/switch';
 import CustomPaywall from '../../components/subscription/CustomPaywall';
 import { useSubscription } from '../../context/SubscriptionContext';
+import { Capacitor } from '@capacitor/core';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+
+const fieldStyle: React.CSSProperties = {
+    background: '#ffffff',
+    border: '1.5px solid #e2ddd8',
+    borderRadius: 10,
+    padding: '13px 14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    cursor: 'pointer',
+    width: '100%',
+    boxSizing: 'border-box',
+};
+
+const parseDateStr = (s: string) => s ? new Date(s + 'T00:00:00') : null;
+const parseTimeStr = (s: string) => {
+    if (!s) return null;
+    const [h, m] = s.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d;
+};
+
+// eslint-disable-next-line react/display-name
+const PickerTrigger = React.forwardRef<HTMLDivElement, { value?: string; onClick?: () => void; icon: React.ReactNode; placeholder: string }>(
+    ({ value, onClick, icon, placeholder }, ref) => (
+        <div ref={ref} style={fieldStyle} onClick={onClick}>
+            <span style={{ fontSize: 14, color: value ? '#0f172a' : '#94a3b8' }}>{value || placeholder}</span>
+            {icon}
+        </div>
+    )
+);
 
 export default function ScheduleGeneratorWizard() {
     const { users, createSchedule, toggleWatchLeader } = useData();
@@ -80,7 +116,7 @@ export default function ScheduleGeneratorWizard() {
         if (existingSchedule && existingSchedule.slots.length > 0) {
             return existingSchedule.slots[0].crew.length;
         }
-        return 2;
+        return 1;
     });
     const [isStaggered, setIsStaggered] = useState(existingSchedule?.isStaggered !== undefined ? existingSchedule.isStaggered : true);
 
@@ -215,27 +251,42 @@ export default function ScheduleGeneratorWizard() {
         navigate('/dashboard/captain');
     };
 
+    // TODO: Replace with RevenueCat subscription tier limit when configured
+    const maxCrewPerWatch = 8;
+    const isNative = Capacitor.isNativePlatform();
+
     return (
         <div className="min-h-screen bg-background flex flex-col">
-            {/* Header */}
-            <div className="p-4 border-b flex items-center gap-4 bg-card z-10 sticky top-0 safe-area-pt">
-                <Button variant="ghost" size="sm" className="gap-1 pl-2 text-muted-foreground" onClick={() => {
-                    if (step === 1) navigate(-1);
-                    else setStep(step - 1);
-                }}>
-                    <ArrowLeft className="h-4 w-4" />
-                    Back
-                </Button>
-            </div>
+            {/* Main YachtWatch header */}
+            <header className="border-b bg-card sticky top-0 z-50 safe-area-pt">
+                <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-xl text-primary">
+                        <Anchor className="h-6 w-6" />
+                        <span>YachtWatch</span>
+                    </div>
+                    <ProfileDropdown />
+                </div>
+            </header>
 
-            <div className="flex-1 p-6 max-w-lg mx-auto w-full pb-10">
+            <div className="flex-1 p-6 max-w-lg mx-auto w-full pb-10 overflow-x-hidden">
+
+                {/* Back button */}
+                <div className="-ml-2" style={{ marginTop: '-5px', marginBottom: '2px' }}>
+                    <Button variant="ghost" size="sm" className="gap-1 pl-2 text-muted-foreground" onClick={() => {
+                        if (step === 1) navigate(-1);
+                        else setStep(step - 1);
+                    }}>
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
+                    </Button>
+                </div>
 
                 {/* HEADLINES */}
                 <div className="mb-8">
                     <h1 className="text-2xl font-bold tracking-tight">
-                        {step === 1 && "Step 1: Configuration"}
-                        {step === 2 && "Step 2: Select Crew"}
-                        {step === 3 && "Step 3: Preview"}
+                        {step === 1 && "Configuration"}
+                        {step === 2 && "Select Crew"}
+                        {step === 3 && "Preview"}
                     </h1>
                     <p className="text-muted-foreground text-sm mt-1">
                         {step === 1 && "Set up the basic parameters for your watch schedule."}
@@ -248,79 +299,128 @@ export default function ScheduleGeneratorWizard() {
                 {step === 1 && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
 
-                        <div className="space-y-3">
-                            <label className="text-sm font-semibold text-foreground">Schedule Name</label>
+                        <div className="space-y-2">
+                            <label style={{ fontSize: 13 }} className="font-medium text-foreground">Schedule Name</label>
                             <Input
-                                placeholder="e.g. Atlantic Crossing 2024"
+                                placeholder="e.g. Atlantic Crossing 2026"
                                 value={scheduleName}
                                 onChange={e => setScheduleName(e.target.value)}
-                                className="h-12 text-base"
+                                className="rounded-[10px]"
+                                style={{ background: '#ffffff', border: '1.5px solid #e2ddd8', padding: '13px 14px', height: 'auto', textAlign: 'left', width: '100%', boxSizing: 'border-box' }}
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-6">
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Start Date</label>
-                                <Input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={e => setStartDate(e.target.value)}
-                                    className="h-11"
-                                />
+                                <label style={{ fontSize: 13 }} className="font-medium text-foreground">Start Date</label>
+                                {isNative ? (
+                                    <div style={{ ...fieldStyle, position: 'relative' }}>
+                                        <span style={{ fontSize: 14, color: startDate ? '#0f172a' : '#94a3b8' }}>
+                                            {startDate ? new Date(startDate + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Select date'}
+                                        </span>
+                                        <CalendarIcon style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }} />
+                                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                                    </div>
+                                ) : (
+                                    <DatePicker
+                                        selected={parseDateStr(startDate)}
+                                        onChange={(d: Date | null) => d && setStartDate(d.toISOString().split('T')[0])}
+                                        dateFormat="dd MMM yyyy"
+                                        placeholderText="Select date"
+                                        customInput={<PickerTrigger icon={<CalendarIcon style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }} />} placeholder="Select date" />}
+                                    />
+                                )}
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Start Time</label>
-                                <Input
-                                    type="time"
-                                    value={startTime}
-                                    onChange={e => setStartTime(e.target.value)}
-                                    className="h-11"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">End Date</label>
-                                <Input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={e => setEndDate(e.target.value)}
-                                    className="h-11"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">End Time</label>
-                                <Input
-                                    type="time"
-                                    value={endTime}
-                                    onChange={e => setEndTime(e.target.value)}
-                                    className="h-11"
-                                />
+                                <label style={{ fontSize: 13 }} className="font-medium text-foreground">Start Time</label>
+                                {isNative ? (
+                                    <div style={{ ...fieldStyle, position: 'relative' }}>
+                                        <span style={{ fontSize: 14, color: startTime ? '#0f172a' : '#94a3b8' }}>{startTime || 'Select time'}</span>
+                                        <Clock style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }} />
+                                        <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                                    </div>
+                                ) : (
+                                    <DatePicker
+                                        selected={parseTimeStr(startTime)}
+                                        onChange={(d: Date | null) => d && setStartTime(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }))}
+                                        showTimeSelect showTimeSelectOnly
+                                        timeIntervals={15}
+                                        timeFormat="HH:mm"
+                                        dateFormat="HH:mm"
+                                        placeholderText="Select time"
+                                        customInput={<PickerTrigger icon={<Clock style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }} />} placeholder="Select time" />}
+                                    />
+                                )}
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-6">
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Duration (Hours)</label>
-                                <Input
-                                    type="number"
-                                    value={duration}
-                                    onChange={e => setDuration(Number(e.target.value))}
-                                    className="h-11"
-                                />
+                                <label style={{ fontSize: 13 }} className="font-medium text-foreground">End Date</label>
+                                {isNative ? (
+                                    <div style={{ ...fieldStyle, position: 'relative' }}>
+                                        <span style={{ fontSize: 14, color: endDate ? '#0f172a' : '#94a3b8' }}>
+                                            {endDate ? new Date(endDate + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Select date'}
+                                        </span>
+                                        <CalendarIcon style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }} />
+                                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                                    </div>
+                                ) : (
+                                    <DatePicker
+                                        selected={parseDateStr(endDate)}
+                                        onChange={(d: Date | null) => d && setEndDate(d.toISOString().split('T')[0])}
+                                        dateFormat="dd MMM yyyy"
+                                        placeholderText="Select date"
+                                        customInput={<PickerTrigger icon={<CalendarIcon style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }} />} placeholder="Select date" />}
+                                    />
+                                )}
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Crew Per Watch</label>
-                                <Input
-                                    type="number"
-                                    value={crewPerWatch}
-                                    onChange={e => setCrewPerWatch(Number(e.target.value))}
-                                    className="h-11"
-                                />
+                                <label style={{ fontSize: 13 }} className="font-medium text-foreground">End Time</label>
+                                {isNative ? (
+                                    <div style={{ ...fieldStyle, position: 'relative' }}>
+                                        <span style={{ fontSize: 14, color: endTime ? '#0f172a' : '#94a3b8' }}>{endTime || 'Select time'}</span>
+                                        <Clock style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }} />
+                                        <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                                    </div>
+                                ) : (
+                                    <DatePicker
+                                        selected={parseTimeStr(endTime)}
+                                        onChange={(d: Date | null) => d && setEndTime(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }))}
+                                        showTimeSelect showTimeSelectOnly
+                                        timeIntervals={15}
+                                        timeFormat="HH:mm"
+                                        dateFormat="HH:mm"
+                                        placeholderText="Select time"
+                                        customInput={<PickerTrigger icon={<Clock style={{ width: 16, height: 16, color: '#94a3b8', flexShrink: 0 }} />} placeholder="Select time" />}
+                                    />
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                            <div className="space-y-2">
+                                <label style={{ fontSize: 13 }} className="font-medium text-foreground">Duration (Hours)</label>
+                                <div style={{ ...fieldStyle, position: 'relative' }}>
+                                    <span style={{ fontSize: 14, color: '#0f172a' }}>{duration}h</span>
+                                    <select value={duration} onChange={e => setDuration(Number(e.target.value))} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}>
+                                        {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}h</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label style={{ fontSize: 13 }} className="font-medium text-foreground">Crew Per Watch</label>
+                                <div style={{ ...fieldStyle, position: 'relative' }}>
+                                    <span style={{ fontSize: 14, color: '#0f172a' }}>{crewPerWatch}</span>
+                                    <select value={crewPerWatch} onChange={e => setCrewPerWatch(Number(e.target.value))} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }}>
+                                        {Array.from({ length: maxCrewPerWatch }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
                         {crewPerWatch > 1 && (
-                            <div className="flex items-center justify-between p-4 border rounded-xl bg-card shadow-sm">
+                            <div className="flex items-center justify-between p-4 rounded-[10px] bg-white shadow-sm" style={{ border: '1.5px solid #e2ddd8' }}>
                                 <div>
                                     <div className="font-medium text-sm">Staggered Watches</div>
                                     <div className="text-xs text-muted-foreground">Offset crew changes for smoother handover</div>

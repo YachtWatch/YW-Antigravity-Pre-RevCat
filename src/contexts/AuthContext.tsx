@@ -61,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // Or if it's the initial session, we still want to fetch in the background to ensure data isn't stale.
                 const shouldFetch = !user || user.id !== session.user.id || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION';
                 if (shouldFetch) {
-                    // Only show loading spinner if we didn't just load from cache
-                    const showLoading = !cached || event !== 'INITIAL_SESSION';
+                    // Only show loading spinner on first load without cache — not on background token refreshes
+                    const showLoading = (!cached || event !== 'INITIAL_SESSION') && event !== 'TOKEN_REFRESHED';
                     await fetchProfile(session.user.id, session.user.email!, session.user.user_metadata, showLoading);
                 } else {
                     setLoading(false);

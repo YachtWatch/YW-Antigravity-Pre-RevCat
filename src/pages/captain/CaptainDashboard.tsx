@@ -22,7 +22,7 @@ const formatTime = (isoString: string) => {
 
 export default function CaptainDashboard() {
     const { user, updateUser, loading: authLoading } = useAuth();
-    const { createVessel, getVessel, getRequestsForVessel, updateRequestStatus, createSchedule, getSchedule, updateUserInStore, updateScheduleSlot, updateScheduleSettings, removeCrew, updateCrewRole, users, refreshData, deleteSchedule, loading, checkInToWatch } = useData();
+    const { createVessel, getVessel, getRequestsForVessel, updateRequestStatus, createSchedule, getSchedule, updateUserInStore, updateScheduleSlot, updateScheduleSettings, removeCrew, updateCrewRole, users, refreshData, deleteSchedule, loading, initialLoadComplete, checkInToWatch } = useData();
     const [activeTab, setActiveTab] = useState<'dashboard' | 'schedule' | 'crew'>('dashboard');
 
     // Vessel Setup State
@@ -139,7 +139,8 @@ export default function CaptainDashboard() {
     // Wait for both DataContext and AuthContext to finish loading before deciding if vessel exists.
     // Without authLoading check, a captain can see "Register Vessel" if DataContext finishes first
     // before AuthContext has fully resolved user.vesselId.
-    if (loading || authLoading) {
+    // Only block on authLoading during the initial load — not on background token refreshes.
+    if (loading || (authLoading && !initialLoadComplete) || !initialLoadComplete) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
                 <SailboatLoader />
