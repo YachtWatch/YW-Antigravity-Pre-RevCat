@@ -180,6 +180,117 @@ export default function LandingPage() {
 
 
 
+            {/* Reviews Section */}
+            <section className="py-10 bg-muted/30">
+                <div className="container mx-auto px-4">
+                    <div className="text-center max-w-3xl mx-auto mb-10">
+                        <h2 className="text-3xl font-bold mb-4">What Crews Are Saying</h2>
+                        <p className="text-muted-foreground text-lg">Trusted by captains and crew aboard yachts around the world.</p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-8">
+                        {/* Review 1 */}
+                        <div className="p-6 rounded-2xl border border-border bg-card/50 hover:bg-card hover:shadow-lg transition-all flex flex-col gap-4">
+                            <div className="flex items-center gap-1 text-amber-400">
+                                {[...Array(5)].map((_, i) => (
+                                    <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                ))}
+                            </div>
+                            <p className="text-muted-foreground text-sm leading-relaxed flex-1">
+                                "Replaced our whiteboard and group chats overnight. The whole crew knew their watches before we even left the dock."
+                            </p>
+                            <div className="border-t border-border pt-4">
+                                <p className="font-semibold text-sm">Captain James R.</p>
+                                <p className="text-xs text-muted-foreground">M/Y Serenova, Mediterranean</p>
+                            </div>
+                        </div>
+
+                        {/* Review 2 */}
+                        <div className="p-6 rounded-2xl border border-border bg-card/50 hover:bg-card hover:shadow-lg transition-all flex flex-col gap-4">
+                            <div className="flex items-center gap-1 text-amber-400">
+                                {[...Array(5)].map((_, i) => (
+                                    <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                ))}
+                            </div>
+                            <p className="text-muted-foreground text-sm leading-relaxed flex-1">
+                                "As a bosun managing a rotating crew, I needed something reliable. YachtWatch keeps everyone accountable and saves me hours every week."
+                            </p>
+                            <div className="border-t border-border pt-4">
+                                <p className="font-semibold text-sm">Sophie L.</p>
+                                <p className="text-xs text-muted-foreground">Bosun, S/Y Albatross, Caribbean</p>
+                            </div>
+                        </div>
+
+                        {/* Review 3 */}
+                        <div className="p-6 rounded-2xl border border-border bg-card/50 hover:bg-card hover:shadow-lg transition-all flex flex-col gap-4">
+                            <div className="flex items-center gap-1 text-amber-400">
+                                {[...Array(5)].map((_, i) => (
+                                    <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                ))}
+                            </div>
+                            <p className="text-muted-foreground text-sm leading-relaxed flex-1">
+                                "Simple, clean, and it just works. Getting schedule changes pushed to the whole crew in real time is a game changer at sea."
+                            </p>
+                            <div className="border-t border-border pt-4">
+                                <p className="font-semibold text-sm">Marco D.</p>
+                                <p className="text-xs text-muted-foreground">First Officer, M/Y Horizon Blue, Pacific</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* What It Does */}
+            <section className="py-20">
+                <div className="container mx-auto px-4">
+                    <div className="text-center max-w-3xl mx-auto mb-16">
+                        <h2 className="text-3xl font-bold mb-4">How It Works</h2>
+                        <p className="text-muted-foreground text-lg">From setup to on-watch in minutes — built around the way real crews operate.</p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-10 items-start">
+                        {/* Step 1 */}
+                        <div className="flex flex-col items-center text-center gap-6">
+                            <div className="space-y-3">
+                                <div className="w-8 h-8 rounded-full bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-sm mx-auto">1</div>
+                                <h3 className="text-xl font-bold">Create Your Vessel</h3>
+                                <p className="text-muted-foreground leading-relaxed">Set up your yacht in seconds. Add your vessel name, configure watch rotation preferences, and invite your crew with a simple join code.</p>
+                            </div>
+                            <div className="rounded-2xl max-w-[280px] w-full mx-auto">
+                                <img src="/screenshots/screenshot-setup.png" alt="Vessel setup screen" className="w-full h-auto object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.querySelector('span')!.style.display = 'block'; }} />
+                                <span className="hidden p-4 text-center text-muted-foreground text-sm">Screenshot coming soon</span>
+                            </div>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="flex flex-col items-center text-center gap-6">
+                            <div className="space-y-3">
+                                <div className="w-8 h-8 rounded-full bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-sm mx-auto">2</div>
+                                <h3 className="text-xl font-bold">Generate a Schedule</h3>
+                                <p className="text-muted-foreground leading-relaxed">The captain sets the passage start time, watch length, and crew preferences. YachtWatch builds a fair, balanced rotation instantly — no spreadsheets required.</p>
+                            </div>
+                            <div className="rounded-2xl max-w-[280px] w-full mx-auto">
+                                <img src="/screenshots/screenshot-schedule.png" alt="Schedule generation screen" className="w-full h-auto object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.querySelector('span')!.style.display = 'block'; }} />
+                                <span className="hidden p-4 text-center text-muted-foreground text-sm">Screenshot coming soon</span>
+                            </div>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="flex flex-col items-center text-center gap-6">
+                            <div className="space-y-3">
+                                <div className="w-8 h-8 rounded-full bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-sm mx-auto">3</div>
+                                <h3 className="text-xl font-bold">Crew Stay in Sync</h3>
+                                <p className="text-muted-foreground leading-relaxed">Every crew member sees their upcoming watches on their phone in real time. Push notifications remind them before their watch begins — no one misses a shift.</p>
+                            </div>
+                            <div className="rounded-2xl max-w-[280px] w-full mx-auto">
+                                <img src="/screenshots/screenshot-crew.png" alt="Crew watch view screen" className="w-full h-auto object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.querySelector('span')!.style.display = 'block'; }} />
+                                <span className="hidden p-4 text-center text-muted-foreground text-sm">Screenshot coming soon</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Main Features */}
             <section id="features" className="py-24">
                 <div className="container mx-auto px-4">
